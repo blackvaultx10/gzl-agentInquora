@@ -65,11 +65,13 @@ export async function getProviderTypes(): Promise<Array<{ type: string; name: st
   return (await response.json()) as Array<{ type: string; name: string; description: string; fields: string[] }>;
 }
 
-export async function parseInquiry(files: File[]): Promise<InquiryResult> {
+export async function parseInquiry(files: File[], maxPages?: number): Promise<InquiryResult> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const response = await fetch(`${API_BASE_URL}/inquiry/parse`, {
+  const url = maxPages ? `${API_BASE_URL}/inquiry/parse?max_pages=${maxPages}` : `${API_BASE_URL}/inquiry/parse`;
+
+  const response = await fetch(url, {
     method: "POST",
     body: formData,
   });

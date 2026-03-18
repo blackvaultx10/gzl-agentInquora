@@ -19,7 +19,25 @@
       "Bash(npm run:*)",
       "Bash(cd:*)",
       "Bash(taskkill /F /PID 52656)",
-      "Bash(taskkill /F /IM node.exe)"
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(/c/Users/xuyilin/AppData/Local/Programs/Python/Python314/python -c \":*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 18692 -Force -ErrorAction SilentlyContinue; Write-Host '进程已终止'\")",
+      "Bash(powershell -Command \"Remove-Item -Path ''.next'' -Recurse -Force -ErrorAction SilentlyContinue; Write-Host ''完成''\")",
+      "Bash(powershell -Command \"Stop-Process -Id 42736 -Force; Write-Host 'Done'\")",
+      "Bash(node:*)",
+      "Bash(npx next:*)",
+      "Bash(ls -la *.config.*)",
+      "Bash(ls -la tailwind.config.* postcss.config.*)",
+      "Bash(npx tsc:*)",
+      "Bash(/c/Users/xuyilin/AppData/Local/Programs/Python/Python314/python -m uvicorn app.main:app --port 8002)",
+      "Bash(npm install:*)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2; Write-Host 'Done'\")",
+      "Bash(.venv/Scripts/python -c \"from app.api.routes_config import router; print\\(''Import OK''\\)\")",
+      "Bash(.venv\\\\Scripts\\\\python -c \"from app.api.routes_config import router; print\\(''Import OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"from app.main import app; print\\([r.path for r in app.routes]\\)\")",
+      "Bash(/c/Users/xuyilin/AppData/Local/Programs/Python/Python314/python -c \"from app.main import app; print\\('\\\\\\\\n'.join\\([f'{r.path}' for r in app.routes]\\)\\)\")",
+      "Bash(/c/Users/xuyilin/AppData/Local/Programs/Python/Python314/python -c \"from app.main import app\")"
     ]
   }
 }

@@ -19,17 +19,17 @@ class InquiryPipeline:
         self.extractor = ParameterExtractor(settings)
         self.pricing = PricingEngine(settings)
 
-    async def _process_single_file(self, upload: UploadFile) -> tuple | None:
+    async def _process_single_file(self, upload: UploadFile, max_pages: int = 0) -> tuple | None:
         """处理单个文件。"""
         if not upload.filename:
             return None
         try:
-            parsed_document, raw_text = await parse_upload(upload)
+            parsed_document, raw_text = await parse_upload(upload, max_pages=max_pages)
             return parsed_document, raw_text
         except Exception as exc:
             return None, f"处理失败: {exc}"
 
-    async def run(self, files: list[UploadFile]) -> InquiryResult:
+    async def run(self, files: list[UploadFile], max_pages: int = 0) -> InquiryResult:
         if not files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -41,7 +41,7 @@ class InquiryPipeline:
 
         async def process_with_limit(upload: UploadFile):
             async with semaphore:
-                return await self._process_single_file(upload)
+                return await self._process_single_file(upload, max_pages=max_pages)
 
         results = await asyncio.gather(*[process_with_limit(f) for f in files])
 
@@ -65,9 +65,9 @@ class InquiryPipeline:
                 detail="所有上传文件都无法解析。",
             )
 
-        extracted, mode = self.extractor.extract(documents, raw_texts)
+        extracted, mode = await asyncio.to_thread(self.extractor.extract, documents, raw_texts)
         warnings.extend(extracted.warnings)
-        priced_items, summary = self.pricing.price_items(extracted.items)
+        priced_items, summary = await asyncio.to_thread(self.pricing.price_items, extracted.items)
 
         return InquiryResult(
             request_id=f"inq-{uuid4().hex[:10]}",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import tempfile
 from functools import lru_cache
@@ -492,7 +493,7 @@ def _ocr_pdf_page(page, index: int, settings) -> tuple[int, str, list[str]]:
         return index, "", [f"第 {index} 页 OCR 失败: {exc}"]
 
 
-def _collect_pdf_ocr_text(path: Path) -> tuple[str, list[str]]:
+def _collect_pdf_ocr_text(path: Path, max_pages: int = 0) -> tuple[str, list[str]]:
     settings = get_settings()
     try:
         import pypdfium2 as pdfium
@@ -507,14 +508,21 @@ def _collect_pdf_ocr_text(path: Path) -> tuple[str, list[str]]:
         return "", [f"PDF OCR 打开失败: {exc}"]
 
     try:
-        # 收集所有页面
-        pages = list(enumerate(pdf, start=1))
-        total_pages = len(pages)
-        warnings.append(f"PDF共 {total_pages} 页，开始OCR识别...")
+        # 收集所有页面（或限制页数）
+        all_pages = list(enumerate(pdf, start=1))
+        total_pages = len(all_pages)
+
+        # 如果设置了max_pages，只处理前N页
+        if max_pages > 0 and total_pages > max_pages:
+            pages = all_pages[:max_pages]
+            warnings.append(f"PDF共 {total_pages} 页，分批处理前 {max_pages} 页...")
+        else:
+            pages = all_pages
+            warnings.append(f"PDF共 {total_pages} 页，开始OCR识别...")
 
         # 大文件警告：超过5页的PDF处理会很慢
-        if total_pages > 5:
-            warnings.append(f"PDF页数较多({total_pages}页)，OCR识别可能需要几分钟时间...")
+        if total_pages > 5 and max_pages == 0:
+            warnings.append(f"PDF页数较多({total_pages}页)，建议分批处理或等待几分钟...")
 
         # 最多3页并行（避免OCR服务限流）
         max_workers = min(3, len(pages))
@@ -557,24 +565,24 @@ def _collect_plain_text(path: Path) -> tuple[str, list[str]]:
     except UnicodeDecodeError:
         return path.read_text(encoding="gb18030", errors="ignore"), []
 
-
-async def parse_upload(upload: UploadFile) -> tuple[ParsedDocument, str]:
-    suffix = Path(upload.filename or "upload.bin").suffix.lower()
-    if not upload.filename:
-        raise ValueError("上传文件缺少文件名。")
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-        temp_path = Path(temp_file.name)
-        content = await upload.read()
-        temp_file.write(content)
-
+def _parse_upload_sync(
+    filename: str,
+    suffix: str,
+    content: bytes,
+    max_pages: int = 0,
+) -> tuple[ParsedDocument, str]:
+    temp_path: Path | None = None
     text = ""
     warnings: list[str] = []
     parser_name = "unknown"
 
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_path = Path(temp_file.name)
+            temp_file.write(content)
+
         if suffix == ".pdf":
-            # 尝试直接提取文本
+            # Try direct text extraction first.
             try:
                 text, warnings = _collect_pdf_text(temp_path)
                 parser_name = "pdfplumber"
@@ -583,11 +591,11 @@ async def parse_upload(upload: UploadFile) -> tuple[ParsedDocument, str]:
                 text = ""
                 parser_name = "ocr-fallback"
 
-            # 无文本、乱码或解析失败时，自动回退到 OCR
+            # Fall back to OCR when text extraction is empty or looks broken.
             if not text.strip() or _is_garbage_text(text):
                 if text.strip():
                     warnings.append("PDF 文本提取结果异常（可能为乱码），已自动使用 OCR 重新识别。")
-                ocr_text, ocr_warnings = _collect_pdf_ocr_text(temp_path)
+                ocr_text, ocr_warnings = _collect_pdf_ocr_text(temp_path, max_pages=max_pages)
                 warnings.extend(ocr_warnings)
                 if ocr_text.strip():
                     text = ocr_text
@@ -633,13 +641,29 @@ async def parse_upload(upload: UploadFile) -> tuple[ParsedDocument, str]:
         warnings = [f"处理文件时发生错误: {e}"]
         parser_name = "error"
     finally:
-        with contextlib.suppress(FileNotFoundError):
-            temp_path.unlink()
+        if temp_path is not None:
+            with contextlib.suppress(FileNotFoundError):
+                temp_path.unlink()
 
     return ParsedDocument(
-        filename=upload.filename,
+        filename=filename,
         file_type=suffix.lstrip(".") or "unknown",
         parser=parser_name,
         text_excerpt=_clean_excerpt(text),
         warnings=warnings,
     ), text
+
+
+async def parse_upload(upload: UploadFile, max_pages: int = 0) -> tuple[ParsedDocument, str]:
+    suffix = Path(upload.filename or "upload.bin").suffix.lower()
+    if not upload.filename:
+        raise ValueError("上传文件缺少文件名。")
+
+    content = await upload.read()
+    return await asyncio.to_thread(
+        _parse_upload_sync,
+        upload.filename,
+        suffix,
+        content,
+        max_pages,
+    )

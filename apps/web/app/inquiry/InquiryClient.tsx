@@ -32,16 +32,15 @@ import {
   Tooltip,
 } from "antd";
 import type { UploadFile } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { exportInquiry, parseInquiry } from "@/lib/api";
 import type { ExportFormat, InquiryItem, InquiryResult } from "@/lib/types";
 
-const API_WS_URL = process.env.NEXT_PUBLIC_API_WS_URL ?? "ws://localhost:8002";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 const { Dragger } = Upload;
 const { Paragraph, Text, Title } = Typography;
-const { Step } = Steps;
 
 const anomalyColorMap: Record<string, string> = {
   no_price_match: "volcano",
@@ -86,6 +85,7 @@ export function InquiryClient() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [maxPages, setMaxPages] = useState<number>(3);
   const [progress, setProgress] = useState<ProgressState>({
     visible: false,
     percent: 0,
@@ -95,7 +95,6 @@ export function InquiryClient() {
     detail: "",
     filename: "",
   });
-  const wsRef = useRef<WebSocket | null>(null);
 
   const columns: NonNullable<TableProps<InquiryItem>["columns"]> = useMemo(
     () => [
@@ -125,9 +124,9 @@ export function InquiryClient() {
       { title: "状态", dataIndex: "anomalies", key: "anomalies", width: 120, render: (anomalies: string[]) =>
         anomalies.length ? (
           <Space size={[0, 4]} wrap>
-            {anomalies.map((a) => <Tag size="small" color={anomalyColorMap[a] ?? "default"} key={a}>{anomalyTextMap[a] || a}</Tag>)}
+            {anomalies.map((a) => <Tag className="text-xs" color={anomalyColorMap[a] ?? "default"} key={a}>{anomalyTextMap[a] || a}</Tag>)}
           </Space>
-        ) : <Tag size="small" color="success">已匹配</Tag>
+        ) : <Tag className="text-xs" color="success">已匹配</Tag>
       },
     ],
     []
@@ -149,82 +148,21 @@ export function InquiryClient() {
       filename: "",
     });
 
-    // 使用 WebSocket 获取实时进度
-    const ws = new WebSocket(`${API_WS_URL}/ws/inquiry`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      // 发送文件信息（简化处理，实际应发送base64内容）
-      ws.send(JSON.stringify({
-        action: "start_processing",
-        files: files.map((f, i) => ({ filename: f.name, index: i })),
-      }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      switch (data.type) {
-        case "file_start":
-          setProgress(prev => ({
-            ...prev,
-            current: data.current,
-            total: data.total,
-            percent: data.percent,
-            filename: data.filename,
-            step: "正在解析",
-          }));
-          break;
-
-        case "step_update":
-          setProgress(prev => ({
-            ...prev,
-            step: data.step,
-            detail: data.detail,
-            percent: data.percent,
-          }));
-          break;
-
-        case "file_complete":
-          if (data.success) {
-            message.success(`${data.filename} 解析完成`);
-          } else {
-            message.warning(`${data.filename} 解析失败`);
-          }
-          break;
-
-        case "complete":
-          setProgress(prev => ({ ...prev, percent: 100 }));
-          ws.close();
-          break;
-
-        case "error":
-          setError(data.message);
-          message.error(data.message);
-          ws.close();
-          break;
-      }
-    };
-
-    ws.onerror = () => {
-      // WebSocket 失败时回退到普通 HTTP 请求
-      fallbackParse(files);
-    };
-
-    ws.onclose = () => {
-      setLoading(false);
-      setTimeout(() => {
-        setProgress(prev => ({ ...prev, visible: false }));
-      }, 500);
-    };
+    // 直接使用 HTTP 请求（WebSocket 目前为演示模式，返回数据格式不完整）
+    await fallbackParse(files);
   }
 
-  // 回退到普通 HTTP 请求
+  // 执行解析请求（带进度显示）
   async function fallbackParse(files: File[]) {
     try {
-      const payload = await parseInquiry(files);
+      setProgress(prev => ({ ...prev, percent: 30, step: "正在解析文件..." }));
+      const payload = await parseInquiry(files, maxPages);
+
+      setProgress(prev => ({ ...prev, percent: 80, step: "处理结果..." }));
       setResult(payload);
       setCurrentStep(2);
+
+      setProgress(prev => ({ ...prev, percent: 100 }));
       message.success(`解析完成，识别 ${payload.summary.item_count} 条项目`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "解析请求失败";
@@ -232,6 +170,9 @@ export function InquiryClient() {
       message.error(msg);
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, visible: false }));
+      }, 500);
     }
   }
 
@@ -300,6 +241,24 @@ export function InquiryClient() {
 
             <Card className="rounded-card border-line backdrop-blur-card" variant="borderless">
               <Space orientation="vertical" className="w-full">
+                <div className="flex items-center justify-between">
+                  <Text className="text-sm text-ink">PDF处理页数</Text>
+                  <Select
+                    value={maxPages}
+                    onChange={setMaxPages}
+                    options={[
+                      { value: 1, label: "前1页（最快）" },
+                      { value: 2, label: "前2页" },
+                      { value: 3, label: "前3页（推荐）" },
+                      { value: 5, label: "前5页" },
+                      { value: 0, label: "全部（慢）" },
+                    ]}
+                    className="w-40"
+                    size="small"
+                  />
+                </div>
+                <Text className="text-xs text-ink-muted">大PDF建议分批处理，避免超时</Text>
+
                 <Button type="primary" icon={<FileSearchOutlined />} loading={loading} onClick={handleParse} disabled={fileList.length === 0 || progress.visible}
                   size="large" block className="rounded-metric shadow-button">{loading ? "解析中..." : "开始智能解析"}</Button>
 

@@ -19,9 +19,10 @@ def get_pipeline(settings: Settings = Depends(get_settings)) -> InquiryPipeline:
 @router.post("/parse", response_model=InquiryResult)
 async def parse_inquiry(
     files: list[UploadFile] = File(...),
+    max_pages: int = Query(default=3, description="每文件最大处理页数，0表示不限制"),
     pipeline: InquiryPipeline = Depends(get_pipeline),
 ) -> InquiryResult:
-    return await pipeline.run(files)
+    return await pipeline.run(files, max_pages=max_pages)
 
 
 @router.post("/export")
