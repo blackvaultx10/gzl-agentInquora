@@ -1,0 +1,94 @@
+{
+  "request_id": "inq-3db2e6a2dd",
+  "created_at": "2026-03-17T07:25:00.237582Z",
+  "extraction_mode": "heuristic",
+  "documents": [
+    {
+      "filename": "demo-inquiry.txt",
+      "file_type": "txt",
+      "parser": "text",
+      "text_excerpt": "离心泵 Q=20m3/h H=30m 2台 闸阀 DN100 6只 配电箱 XL-21 1台 组合式空调机组 AHU-18 1套",
+      "warnings": []
+    }
+  ],
+  "items": [
+    {
+      "name": "离心泵",
+      "category": "泵组设备",
+      "specification": "Q=20m3/h / H=30m",
+      "material": null,
+      "quantity": 2.0,
+      "unit": "台",
+      "source_snippet": "离心泵 Q=20m3/h H=30m 2台",
+      "confidence": 0.58,
+      "vendor": "华东泵业",
+      "currency": "CNY",
+      "unit_price": 6800.0,
+      "total_price": 13600.0,
+      "price_basis": "2026Q1 自建样本价",
+      "match_score": 1.0,
+      "anomalies": []
+    },
+    {
+      "name": "闸阀",
+      "category": "阀门",
+      "specification": "DN100",
+      "material": null,
+      "quantity": 6.0,
+      "unit": "只",
+      "source_snippet": "闸阀 DN100 6只",
+      "confidence": 0.58,
+      "vendor": "沪工阀门",
+      "currency": "CNY",
+      "unit_price": 460.0,
+      "total_price": 2760.0,
+      "price_basis": "2026Q1 自建样本价",
+      "match_score": 1.0,
+      "anomalies": []
+    },
+    {
+      "name": "配电箱",
+      "category": "电气设备",
+      "specification": "XL-21",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "台",
+      "source_snippet": "配电箱 XL-21 1台",
+      "confidence": 0.58,
+      "vendor": "智控电气",
+      "currency": "CNY",
+      "unit_price": 4200.0,
+      "total_price": 4200.0,
+      "price_basis": "2026Q1 自建样本价",
+      "match_score": 1.0,
+      "anomalies": []
+    },
+    {
+      "name": "组合式空调机组",
+      "category": "暖通设备",
+      "specification": "AHU-18",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "套",
+      "source_snippet": "组合式空调机组 AHU-18 1套",
+      "confidence": 0.58,
+      "vendor": "宁风暖通",
+      "currency": "CNY",
+      "unit_price": 48600.0,
+      "total_price": 48600.0,
+      "price_basis": "2026Q1 自建样本价",
+      "match_score": 1.0,
+      "anomalies": []
+    }
+  ],
+  "warnings": [
+    "未配置 OPENAI_API_KEY，已使用本地规则抽取。"
+  ],
+  "summary": {
+    "item_count": 4,
+    "matched_count": 4,
+    "flagged_count": 0,
+    "subtotal": 69160.0,
+    "currency": "CNY"
+  }
+}

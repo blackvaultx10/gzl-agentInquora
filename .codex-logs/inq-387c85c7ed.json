@@ -1,0 +1,790 @@
+{
+  "request_id": "inq-387c85c7ed",
+  "created_at": "2026-03-17T11:03:10.654810Z",
+  "extraction_mode": "deepseek",
+  "documents": [
+    {
+      "filename": "地下强电系统图及平面图_新.pdf",
+      "file_type": "pdf",
+      "parser": "pdfplumber+ocr",
+      "text_excerpt": "[第 1 页 OCR] 甜_ / Dosgn Comporollon 壹创囤际 MOUNIUTLTOIUL f醑孱卅#s侗 Shamt fhng Isoland Otign c.LlC 钊4 幞 }[耥[144032639 R4ji幞 |{164027879 4R1枰陟 |硎}d44022879 RIU IIN0286 \"4 INKItins \" {R86 tt1 rX660 黧U |11*25402516 |5 |1151*254028玷 坩+} INSIOi CODEg9II 牡 杜 拜山 #755.221f SHSCC dsqot AMplwwGmcgfan (k 尺 8 A N U 5 HcHTCIUre and Nrsn [n。 *4 [#4109 C uI{ 44 OCm 懿惫 FWCCT LJLGCA + FRITIT LWVU 8 1...",
+      "warnings": [
+        "PDF 未提取到可复制文本，已自动尝试 OCR。"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "63W3",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 63W3",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "C则-63_354",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "C则-63_354",
+      "confidence": 0.6,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "1033",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 1033",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "6313",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 6313",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "IW330",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB IW330",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "IW3",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB IW3",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "IOW3",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB IOW3",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "63133001",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 63133001",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "63W301",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 63W301",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "6N3",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 6N3",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "I60130",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB I60130",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "Ib013",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB Ib013",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "G3L13021",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB G3L13021",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "GW30",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB GW30",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "G3N3O01",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB G3N3O01",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "6H330021",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 6H330021",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "E3WH",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB E3WH",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "6433",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 6433",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "6N3o1",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 6N3o1",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "IOWIMOI",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB IOWIMOI",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "CHI330021",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB CHI330021",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "No0",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB No0",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "HOIIP+NBIA",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB HOIIP+NBIA",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "们06s",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 们06s",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "1NJ3O",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 1NJ3O",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "们63o",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 们63o",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "ZSoW",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB ZSoW",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "ICCB",
+      "category": "断路器",
+      "specification": "2OIZP+IIC",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "ICCB 2OIZP+IIC",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJt 5X+35",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJt 5X+35 | WDZN YJt 5X+35",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJt 5X5",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJt 5X5",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJCx J82",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJCx J82",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJY 5X+35",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJY 5X+35",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "WTgRS+ls",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN WTgRS+ls",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "LNJY685+",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN LNJY685+",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJY 5蜘",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJY 5蜘",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "W5刈",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN W5刈",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "W5Y",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN W5Y",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "YJ5k",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN YJ5k",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "HY 4X+55",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN HY 4X+55",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "WDZN",
+      "category": "电缆",
+      "specification": "XJY 68+",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "项",
+      "source_snippet": "WDZN XJY 68+",
+      "confidence": 0.7,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    }
+  ],
+  "warnings": [
+    "PDF 未提取到可复制文本，已自动尝试 OCR。",
+    "地下强电系统图及平面图_新.pdf#chunk-1: DeepSeek 抽取失败: DeepSeek JSON parse failed: Expecting property name enclosed in double quotes: line 569 column 1 (char 12077)",
+    "地下强电系统图及平面图_新.pdf#chunk-2: DeepSeek 返回了非严格 JSON，系统已自动修复。"
+  ],
+  "summary": {
+    "item_count": 40,
+    "matched_count": 0,
+    "flagged_count": 40,
+    "subtotal": 0.0,
+    "currency": "CNY"
+  }
+}

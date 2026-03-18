@@ -1,0 +1,15 @@
+
+> inquora-web@0.1.0 dev
+> next dev
+
+   â–² Next.js 15.5.13
+   - Local:        http://localhost:3000
+   - Network:      http://10.10.159.59:3000
+
+ âœ“ Starting...
+ âœ“ Ready in 3.1s
+ â—‹ Compiling / ...
+ âœ“ Compiled / in 16.4s (6549 modules)
+ GET / 200 in 329ms
+ GET / 200 in 364ms
+ÖÕÖ¹Åú´¦Àí²Ù×÷Âð(Y/N)? 

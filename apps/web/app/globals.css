@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --page-ink: #f6efe3;
+  --paper: rgba(255, 250, 244, 0.86);
+  --paper-strong: rgba(255, 252, 247, 0.96);
+  --line: rgba(68, 57, 43, 0.12);
+  --line-strong: rgba(68, 57, 43, 0.18);
+  --shadow: 0 24px 70px rgba(48, 37, 24, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: #211f1a;
+  background:
+    radial-gradient(circle at top left, rgba(228, 87, 46, 0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(28, 76, 112, 0.12), transparent 26%),
+    var(--page-ink);
+  font-family: var(--font-body), sans-serif;
+}
+
+.background-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(40, 35, 29, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(40, 35, 29, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 92%);
+}
+
+.hero-panel,
+.control-card,
+.result-card,
+.stat-card,
+.source-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.hero-panel {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 0.9fr);
+  padding: 1.75rem;
+  border-radius: 34px;
+  background:
+    linear-gradient(120deg, rgba(255, 250, 244, 0.96), rgba(246, 239, 227, 0.9)),
+    var(--paper);
+}
+
+.hero-panel::before,
+.control-card::before,
+.result-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.45), transparent 35%),
+    linear-gradient(0deg, transparent 70%, rgba(228, 87, 46, 0.05));
+}
+
+.hero-copy,
+.hero-metric,
+.metric-stack {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-title {
+  margin: 0.75rem 0 1rem !important;
+  font-size: clamp(2rem, 4.2vw, 4.3rem) !important;
+  line-height: 0.96 !important;
+  letter-spacing: -0.04em;
+}
+
+.hero-paragraph {
+  max-width: 52rem;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: rgba(33, 31, 26, 0.72);
+}
+
+.hero-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.hero-signals span,
+.eyebrow,
+.metric-label {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hero-signals span {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+}
+
+.hero-metric {
+  display: flex;
+  align-items: stretch;
+}
+
+.metric-stack {
+  width: 100%;
+  padding: 1.3rem;
+  border-radius: 28px;
+  border: 1px solid rgba(228, 87, 46, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 244, 239, 0.85));
+}
+
+.metric-label,
+.eyebrow {
+  color: rgba(89, 76, 60, 0.72);
+  font-size: 0.7rem;
+}
+
+.metric-number {
+  margin-top: 0.8rem;
+  font-size: clamp(3rem, 6vw, 4.8rem);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.metric-caption {
+  margin-top: 0.8rem;
+  color: rgba(61, 53, 43, 0.72) !important;
+}
+
+.control-card,
+.result-card,
+.stat-card,
+.source-card {
+  border-radius: 30px !important;
+  background: var(--paper-strong) !important;
+}
+
+.industrial-uploader {
+  border-radius: 26px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 236, 224, 0.7));
+}
+
+.industrial-uploader .ant-upload {
+  padding: 2rem 1rem !important;
+}
+
+.industrial-uploader .ant-upload-drag-icon {
+  color: #e4572e;
+}
+
+.stat-card .ant-statistic {
+  position: relative;
+  z-index: 1;
+}
+
+.source-card {
+  min-height: 180px;
+}
+
+.table-row-flagged > td {
+  background: rgba(255, 245, 234, 0.74) !important;
+}
+
+.table-row-clean > td {
+  background: rgba(255, 255, 255, 0.68) !important;
+}
+
+.ant-table-wrapper .ant-table {
+  background: transparent;
+}
+
+.ant-btn-primary {
+  box-shadow: 0 12px 28px rgba(228, 87, 46, 0.24);
+}
+
+@media (max-width: 1100px) {
+  .hero-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-panel {
+    padding: 1.2rem;
+    border-radius: 28px;
+  }
+
+  .control-card,
+  .result-card,
+  .stat-card,
+  .source-card {
+    border-radius: 24px !important;
+  }
+}

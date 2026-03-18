@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venvScriptsActivate.ps1)",
+      "Bash(pip list:*)",
+      "Bash(findstr -i \"easyocr pytesseract pillow pypdfium\")",
+      "Bash(pip install:*)",
+      "Bash(python -m uvicorn app.main:app --reload --port 8000)",
+      "Bash(python:*)",
+      "Bash(curl -s http://127.0.0.1:8000/api/v1/configs/providers)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :8000)",
+      "Bash(uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(.venvScriptspython -c \"from app.config_manager import get_config_manager; import asyncio; cm = get_config_manager\\(\\); config = asyncio.run\\(cm.get_ocr_config\\(\\)\\); print\\(''OCR Config:'', config\\)\")",
+      "Bash(D:/Projects/custom10/gzl-agentInquora/apps/api/.venv/Scripts/python -c \"from app.config_manager import get_config_manager; import asyncio; cm = get_config_manager\\(\\); config = asyncio.run\\(cm.get_ocr_config\\(\\)\\); print\\('OCR Config:', config\\)\")",
+      "Bash(tasklist)",
+      "Bash(taskkill /F /PID 23348)",
+      "Bash(npm run:*)",
+      "Bash(cd:*)",
+      "Bash(taskkill /F /PID 52656)",
+      "Bash(taskkill /F /IM node.exe)"
+    ]
+  }
+}

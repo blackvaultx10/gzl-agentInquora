@@ -1,0 +1,105 @@
+{
+  "request_id": "inq-3bcd41f857",
+  "created_at": "2026-03-17T10:39:04.083841Z",
+  "extraction_mode": "heuristic",
+  "documents": [
+    {
+      "filename": "地下强电系统图及平面图_新.pdf",
+      "file_type": "pdf",
+      "parser": "pdfplumber+ocr",
+      "text_excerpt": "[第 1 页 OCR] 甜_ / Dosgn Comporollon 壹创囤际 MOUNIUTLTOIUL f醑孱卅#s侗 Shamt fhng Isoland Otign c.LlC 钊4 幞 }[耥[144032639 R4ji幞 |{164027879 4R1枰陟 |硎}d44022879 RIU IIN0286 \"4 INKItins \" {R86 tt1 rX660 黧U |11*25402516 |5 |1151*254028玷 坩+} INSIOi CODEg9II 牡 杜 拜山 #755.221f SHSCC dsqot AMplwwGmcgfan (k 尺 8 A N U 5 HcHTCIUre and Nrsn [n。 *4 [#4109 C uI{ 44 OCm 懿惫 FWCCT LJLGCA + FRITIT LWVU 8 1...",
+      "warnings": [
+        "PDF 未提取到可复制文本，已自动尝试 OCR。"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "name": "UCCB",
+      "category": null,
+      "specification": "G1L3002 / m / I / 8 / HCCR / Iont / 酾蹶 / {叫 / 髋 / HCCB / '{ / IICCINNIPBP / g / 田 / KP",
+      "material": null,
+      "quantity": 1.0,
+      "unit": "m",
+      "source_snippet": "UCCB G1L3002 m I 8 HCCR Iont 酾蹶 {叫 髋 HCCB '{ IICCINNIPBP g 田 KP;HRI 34 HCCB '酾4 Io三 I叫 [Rsl5kH RCE 霹 [osos08 WA 1m HCCR IA 嬴' 5 Oiiy uCCB B吡 啸 8",
+      "confidence": 0.58,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "鹬",
+      "category": null,
+      "specification": "YBlC / JWPOI / IZ / 835 / PCZI / WC / CC / #w / 4呃\"w睚 / WIPC / 6 / 斫 / 此暌\" / 11I+0 / [#2_加~B385 / PQ0 / FC / 7雠 / 2? / NCCBI30021 / a鹄 / u / 姆 / 5 / C@0 / b",
+      "material": null,
+      "quantity": 2.0,
+      "unit": "m",
+      "source_snippet": "鹬 YBlC JWPOI IZ 835 PCZI WC CC #w 4呃\"w睚 WIPC 6 斫 此暌\" 11I+0 [#2_加~B385 PQ0 WC FC 7雠 2? NCCBI30021 a鹄 u CC 姆 5 C@0 b 2m 嗉} ]0瓦 ~旧5A 散髑 Pl丽 l#Wj5so[sCE [I ~( 隅1 [OS-08 酬哑F亿互m2*亚 黟 SKI",
+      "confidence": 0.58,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "12",
+      "category": null,
+      "specification": "WZW6 / 》",
+      "material": null,
+      "quantity": 5.0,
+      "unit": "PCS",
+      "source_snippet": "12 WZW6 》5 PCS C r",
+      "confidence": 0.58,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    },
+    {
+      "name": "4CI202P+IOOC",
+      "category": null,
+      "specification": "I2 / m2B3卅 / PQ0 / NCCC / 醴\" / [o一 / W3 / HZ / B3L / PO0 / HC / CC / .罐 / 矶\"们羽叨 / {I1 / 们 / \"/ / JB2c / IWRUHZN.BJx / JDC / IC / C / 151 / 镞 / 帔 / 们A / NCCB / 6NI33 / 2 / CpI-63 / 75型 / J5 / WZ / W / ( / I-63",
+      "material": null,
+      "quantity": 5.0,
+      "unit": "PCS",
+      "source_snippet": "4CI202P+IOOC I2 m2B3卅 PQ0 NCCC 醴\" [o一 W3 HZ B3L PO0 HC CC .罐 矶\"们羽叨 {I1 们 \"/ JB2c IWRUHZN.BJx JDC IC C 151 镞 帔 们A NCCB 6NI33 2 CpI-63 75型 J5 WZ W (5 PCS CTCE LNII PezlIhI 巍@2 ~}\", I",
+      "confidence": 0.58,
+      "vendor": null,
+      "currency": "CNY",
+      "unit_price": null,
+      "total_price": null,
+      "price_basis": null,
+      "match_score": null,
+      "anomalies": [
+        "no_price_match"
+      ]
+    }
+  ],
+  "warnings": [
+    "PDF 未提取到可复制文本，已自动尝试 OCR。",
+    "deepseek 抽取失败，已回退本地规则: DeepSeek JSON parse failed: Expecting property name enclosed in double quotes: line 558 column 6 (char 11951)"
+  ],
+  "summary": {
+    "item_count": 4,
+    "matched_count": 0,
+    "flagged_count": 4,
+    "subtotal": 0.0,
+    "currency": "CNY"
+  }
+}

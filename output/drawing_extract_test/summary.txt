@@ -1,0 +1,13 @@
+pdf=C:\Users\xuyilin\Desktop\地下强电系统图及平面图_新.pdf
+pages=10
+scale=4.0
+page=1 pdf_text_len=0 ocr_text_len=923 image=page_01.png
+page=2 pdf_text_len=0 ocr_text_len=33 image=page_02.png
+page=3 pdf_text_len=0 ocr_text_len=0 image=page_03.png
+page=4 pdf_text_len=0 ocr_text_len=46 image=page_04.png
+page=5 pdf_text_len=0 ocr_text_len=5102 image=page_05.png
+page=6 pdf_text_len=0 ocr_text_len=5319 image=page_06.png
+page=7 pdf_text_len=0 ocr_text_len=3627 image=page_07.png
+page=8 pdf_text_len=0 ocr_text_len=5089 image=page_08.png
+page=9 pdf_text_len=0 ocr_text_len=5781 image=page_09.png
+page=10 pdf_text_len=0 ocr_text_len=64 image=page_10.png

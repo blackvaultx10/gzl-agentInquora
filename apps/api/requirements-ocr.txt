@@ -1,0 +1,4 @@
+easyocr>=1.7,<1.8
+pytesseract>=0.3,<0.4
+Pillow>=11.0,<12.0
+

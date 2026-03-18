@@ -1,0 +1,5 @@
+pdf=C:\Users\xuyilin\Desktop\地下强电系统图及平面图_新.pdf
+pages=10
+selected_pages=2
+scale=6.0
+page=2 pdf_text_len=0 ocr_text_len=688 image=page_02.png
