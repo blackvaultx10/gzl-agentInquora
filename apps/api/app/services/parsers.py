@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib.util
 import tempfile
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
@@ -18,6 +20,15 @@ if TYPE_CHECKING:
 
 SUPPORTED_IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 SUPPORTED_TEXT_TYPES = {".txt", ".csv", ".json"}
+
+
+@dataclass
+class _CadTextFragment:
+    text: str
+    x: float
+    y: float
+    layer: str = ""
+    source: str = ""
 
 
 def _clean_excerpt(text: str, limit: int = 380) -> str:
@@ -66,6 +77,146 @@ def _deduplicate_lines(lines: list[str]) -> list[str]:
     return result
 
 
+def _normalize_cad_text(text: str) -> str:
+    cleaned = text.replace("\\P", "\n").replace("^J", "\n").strip()
+    return "\n".join(part.strip() for part in cleaned.splitlines() if part.strip())
+
+
+def _point_xy(point) -> tuple[float, float]:
+    if point is None:
+        return 0.0, 0.0
+    return float(getattr(point, "x", point[0])), float(getattr(point, "y", point[1]))
+
+
+def _entity_anchor(entity) -> tuple[float, float]:
+    for attr in ("insert", "text_midpoint", "defpoint", "center"):
+        point = getattr(entity.dxf, attr, None)
+        if point is not None:
+            return _point_xy(point)
+    return 0.0, 0.0
+
+
+def _measurement_text(entity) -> str | None:
+    measurement = getattr(entity.dxf, "actual_measurement", None)
+    if measurement not in (None, ""):
+        return str(measurement)
+
+    getter = getattr(entity, "get_measurement", None)
+    if callable(getter):
+        try:
+            return str(getter())
+        except Exception:
+            return None
+    return None
+
+
+def _fragment_line(fragment: _CadTextFragment) -> str:
+    text = fragment.text.strip()
+    if not text:
+        return ""
+    if fragment.layer and fragment.layer not in {"0", "Defpoints"}:
+        return f"[{fragment.layer}] {text}"
+    return text
+
+
+def _sorted_cad_lines(fragments: list[_CadTextFragment]) -> list[str]:
+    if not fragments:
+        return []
+
+    rows: list[list[_CadTextFragment]] = []
+    row_tolerance = 5.0
+    for fragment in sorted(fragments, key=lambda item: (-item.y, item.x, item.text)):
+        for row in rows:
+            if abs(row[0].y - fragment.y) <= row_tolerance:
+                row.append(fragment)
+                break
+        else:
+            rows.append([fragment])
+
+    lines: list[str] = []
+    for row in rows:
+        ordered = sorted(row, key=lambda item: (item.x, item.text))
+        for fragment in ordered:
+            line = _fragment_line(fragment)
+            if line:
+                lines.append(line)
+    return _deduplicate_lines(lines)
+
+
+def _append_fragment(fragments: list[_CadTextFragment], text: str, entity, source: str = "") -> None:
+    normalized = _normalize_cad_text(text)
+    if not normalized:
+        return
+    x, y = _entity_anchor(entity)
+    fragments.append(
+        _CadTextFragment(
+            text=normalized,
+            x=x,
+            y=y,
+            layer=getattr(entity.dxf, "layer", "") or "",
+            source=source,
+        )
+    )
+
+
+def _iter_cad_text_fragments(entities: Iterator, depth: int = 0) -> Iterator[_CadTextFragment]:
+    if depth > 2:
+        return
+
+    fragments: list[_CadTextFragment] = []
+    for entity in entities:
+        entity_type = entity.dxftype()
+        if entity_type in {"TEXT", "ATTRIB", "ATTDEF"}:
+            text = getattr(entity.dxf, "text", "")
+            if text:
+                _append_fragment(fragments, text, entity, source=entity_type.lower())
+                tag = getattr(entity.dxf, "tag", "").strip()
+                value = text.strip()
+                if tag and value and tag.lower() != value.lower():
+                    _append_fragment(fragments, f"{tag}: {value}", entity, source=f"{entity_type.lower()}_tag")
+        elif entity_type == "MTEXT":
+            text = entity.plain_text() if callable(getattr(entity, "plain_text", None)) else getattr(entity, "text", "")
+            if text:
+                _append_fragment(fragments, text, entity, source="mtext")
+        elif entity_type == "DIMENSION":
+            explicit_text = (getattr(entity.dxf, "text", "") or "").strip()
+            measurement = _measurement_text(entity)
+            if explicit_text and explicit_text != "<>":
+                _append_fragment(fragments, f"尺寸 {explicit_text}", entity, source="dimension")
+            if measurement:
+                _append_fragment(fragments, f"尺寸 {measurement}", entity, source="dimension_measurement")
+        elif entity_type == "INSERT":
+            for attrib in getattr(entity, "attribs", []):
+                value = getattr(attrib.dxf, "text", "").strip()
+                if value:
+                    _append_fragment(fragments, value, attrib, source="insert_attrib")
+                    tag = getattr(attrib.dxf, "tag", "").strip()
+                    if tag and tag.lower() != value.lower():
+                        _append_fragment(fragments, f"{tag}: {value}", attrib, source="insert_attrib_tag")
+            virtual_entities = getattr(entity, "virtual_entities", None)
+            if callable(virtual_entities):
+                with contextlib.suppress(Exception):
+                    yield from _iter_cad_text_fragments(iter(virtual_entities()), depth=depth + 1)
+
+    for fragment in fragments:
+        yield fragment
+
+
+def _collect_cad_entities(document, format_name: str) -> tuple[str, list[str]]:
+    fragments = list(_iter_cad_text_fragments(iter(document.modelspace())))
+    warnings: list[str] = []
+    if not fragments:
+        warnings.append(f"{format_name} 中未找到可识别的文本、属性或尺寸标注。")
+        return "", warnings
+
+    lines = _sorted_cad_lines(fragments)
+    if not lines:
+        warnings.append(f"{format_name} 中未找到可排序的有效文本。")
+        return "", warnings
+
+    return "\n".join(lines), warnings
+
+
 def _collect_dxf_entities(path: Path) -> tuple[str, list[str]]:
     try:
         import ezdxf
@@ -77,35 +228,7 @@ def _collect_dxf_entities(path: Path) -> tuple[str, list[str]]:
     except ezdxf.DXFError as exc:
         return "", [f"DXF 解析失败: {exc}"]
 
-    lines: list[str] = []
-    for entity in document.modelspace():
-        entity_type = entity.dxftype()
-        if entity_type in {"TEXT", "ATTRIB"}:
-            text = getattr(entity.dxf, "text", "").strip()
-            if text:
-                lines.append(text)
-        elif entity_type == "MTEXT":
-            text = entity.text.replace("\\P", "\n").strip()
-            if text:
-                lines.append(text)
-        elif entity_type == "DIMENSION":
-            explicit_text = getattr(entity.dxf, "text", "")
-            measurement = getattr(entity.dxf, "actual_measurement", None)
-            payload = " ".join(
-                part for part in [explicit_text, str(measurement) if measurement else None] if part
-            ).strip()
-            if payload:
-                lines.append(f"尺寸 {payload}")
-        elif entity_type == "INSERT":
-            for attrib in getattr(entity, "attribs", []):
-                text = getattr(attrib.dxf, "text", "").strip()
-                if text:
-                    lines.append(text)
-
-    warnings: list[str] = []
-    if not lines:
-        warnings.append("DXF 中未找到可识别的文本或尺寸标注。")
-    return "\n".join(lines), warnings
+    return _collect_cad_entities(document, "DXF")
 
 
 def _collect_dwg_entities(path: Path) -> tuple[str, list[str]]:
@@ -119,22 +242,7 @@ def _collect_dwg_entities(path: Path) -> tuple[str, list[str]]:
     except Exception as exc:  # pragma: no cover - depends on local ODA setup
         return "", [f"DWG 暂未成功解析，请安装 ODA File Converter 或改传 DXF/PDF: {exc}"]
 
-    lines: list[str] = []
-    for entity in document.modelspace():
-        entity_type = entity.dxftype()
-        if entity_type in {"TEXT", "ATTRIB"}:
-            text = getattr(entity.dxf, "text", "").strip()
-            if text:
-                lines.append(text)
-        elif entity_type == "MTEXT":
-            text = entity.text.replace("\\P", "\n").strip()
-            if text:
-                lines.append(text)
-
-    warnings: list[str] = []
-    if not lines:
-        warnings.append("DWG 已打开，但未提取到文本标注。")
-    return "\n".join(lines), warnings
+    return _collect_cad_entities(document, "DWG")
 
 
 def _collect_pdf_text(path: Path) -> tuple[str, list[str]]:
@@ -164,6 +272,39 @@ def _get_easyocr_reader():
         return None
 
     return easyocr.Reader(settings.ocr_languages, gpu=False)
+
+
+def _can_use_easyocr() -> bool:
+    return (
+        importlib.util.find_spec("easyocr") is not None
+        and importlib.util.find_spec("numpy") is not None
+    )
+
+
+def _can_use_tesseract() -> bool:
+    return importlib.util.find_spec("pytesseract") is not None
+
+
+def _prefetch_ocr_config() -> tuple[dict | None, list[str]]:
+    warnings: list[str] = []
+    try:
+        from app.config_manager import get_config_manager
+
+        return asyncio.run(get_config_manager().get_ocr_config()), warnings
+    except Exception as exc:
+        warnings.append(f"OCR 配置读取失败，已跳过云 OCR: {exc}")
+        return None, warnings
+
+
+def _has_available_ocr_backend(ocr_config: dict | None) -> bool:
+    if (
+        ocr_config
+        and ocr_config.get("provider") == "baidu_ocr"
+        and ocr_config.get("api_key")
+        and ocr_config.get("secret_key")
+    ):
+        return True
+    return _can_use_easyocr() or _can_use_tesseract()
 
 
 def _enhance_for_ocr(image: "PILImage", upscale_factor: float) -> "PILImage":
@@ -362,16 +503,14 @@ def _get_baidu_token(api_key: str, secret_key: str) -> str | None:
     return None
 
 
-def _ocr_with_baidu(image: "PILImage") -> tuple[str, list[str]]:
+def _ocr_with_baidu(image: "PILImage", ocr_config: dict | None = None) -> tuple[str, list[str]]:
     """使用百度智能云 OCR 识别图片。"""
-    import asyncio
-    from app.config_manager import get_config_manager
-
     warnings: list[str] = []
 
     try:
-        config_manager = get_config_manager()
-        ocr_config = asyncio.run(config_manager.get_ocr_config())
+        if ocr_config is None:
+            ocr_config, config_warnings = _prefetch_ocr_config()
+            warnings.extend(config_warnings)
 
         if not ocr_config or ocr_config.get("provider") != "baidu_ocr":
             return "", ["未配置百度 OCR"]
@@ -391,6 +530,7 @@ def _ocr_with_baidu(image: "PILImage") -> tuple[str, list[str]]:
         import base64
         import io
         import requests
+        from PIL import Image
         ocr_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={access_token}"
 
         # 压缩图片以加快上传速度，但不要过度压缩影响识别
@@ -431,9 +571,9 @@ def _ocr_with_baidu(image: "PILImage") -> tuple[str, list[str]]:
         return "", [f"百度 OCR 执行失败: {exc}"]
 
 
-def _ocr_pil_image(image: "PILImage") -> tuple[str, list[str]]:
+def _ocr_pil_image(image: "PILImage", ocr_config: dict | None = None) -> tuple[str, list[str]]:
     # 优先尝试百度 OCR（如果配置了）
-    baidu_text, baidu_warnings = _ocr_with_baidu(image)
+    baidu_text, baidu_warnings = _ocr_with_baidu(image, ocr_config=ocr_config)
     if baidu_text.strip():
         return baidu_text, baidu_warnings
 
@@ -464,7 +604,7 @@ def _collect_image_text(path: Path) -> tuple[str, list[str]]:
     return _ocr_pil_image(image)
 
 
-def _ocr_pdf_page(page, index: int, settings) -> tuple[int, str, list[str]]:
+def _ocr_pdf_page(page, index: int, settings, ocr_config: dict | None = None) -> tuple[int, str, list[str]]:
     """OCR单个PDF页面，返回(页码, 文本, 警告)。"""
     page_warnings: list[str] = []
     try:
@@ -482,7 +622,7 @@ def _ocr_pdf_page(page, index: int, settings) -> tuple[int, str, list[str]]:
 
         bitmap = page.render(scale=render_scale)
         image = bitmap.to_pil()
-        text, ocr_warnings = _ocr_pil_image(image)
+        text, ocr_warnings = _ocr_pil_image(image, ocr_config=ocr_config)
         bitmap.close()
 
         if ocr_warnings:
@@ -501,6 +641,12 @@ def _collect_pdf_ocr_text(path: Path, max_pages: int = 0) -> tuple[str, list[str
         return "", ["未安装 PDF OCR 渲染依赖 `pypdfium2`。"]
 
     warnings: list[str] = []
+    ocr_config, config_warnings = _prefetch_ocr_config()
+    warnings.extend(config_warnings)
+
+    if not _has_available_ocr_backend(ocr_config):
+        warnings.append("PDF 未提取到可复制文本，且当前环境未配置可用 OCR 后端（百度 OCR / EasyOCR / Tesseract）。")
+        return "", warnings
 
     try:
         pdf = pdfium.PdfDocument(str(path))
@@ -524,17 +670,8 @@ def _collect_pdf_ocr_text(path: Path, max_pages: int = 0) -> tuple[str, list[str
         if total_pages > 5 and max_pages == 0:
             warnings.append(f"PDF页数较多({total_pages}页)，建议分批处理或等待几分钟...")
 
-        # 最多3页并行（避免OCR服务限流）
-        max_workers = min(3, len(pages))
-
-        if max_workers > 1:
-            from concurrent.futures import ThreadPoolExecutor
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(_ocr_pdf_page, page, idx, settings) for idx, page in pages]
-                results = [f.result() for f in futures]
-        else:
-            results = [_ocr_pdf_page(page, idx, settings) for idx, page in pages]
+        # PDF 渲染/OCR 的底层依赖在多线程下不稳定，顺序处理更稳。
+        results = [_ocr_pdf_page(page, idx, settings, ocr_config) for idx, page in pages]
 
         # 按页码排序结果
         results.sort(key=lambda x: x[0])

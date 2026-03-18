@@ -105,7 +105,7 @@ def export_docx(result: InquiryResult) -> BytesIO:
     table.style = "Light List Accent 1"
     header_cells = table.rows[0].cells
     headers = ["名称", "规格", "数量", "单价", "总价", "异常"]
-    for cell, header in zip(header_cells, headers, strict=False):
+    for cell, header in zip(header_cells, headers):
         cell.text = header
 
     for item in result.items:
@@ -121,4 +121,3 @@ def export_docx(result: InquiryResult) -> BytesIO:
     document.save(buffer)
     buffer.seek(0)
     return buffer
-

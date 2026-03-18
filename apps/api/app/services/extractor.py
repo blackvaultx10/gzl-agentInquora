@@ -115,13 +115,19 @@ class ParameterExtractor:
     def extract(self, documents: list[ParsedDocument], raw_texts: list[str]) -> tuple[ExtractionPayload, str]:
         heuristic_payload = self._heuristic_extract(raw_texts)
         backend = self._resolve_backend()
+        prefer_llm = self._should_prefer_llm(documents)
 
-        # 如果规则提取成功找到项目，直接使用（速度快）
-        if len(heuristic_payload.items) >= 3:
+        # 普通文本优先走本地规则；OCR 来源的 PDF 优先交给 LLM 清洗结构。
+        if len(heuristic_payload.items) >= 3 and not prefer_llm:
             heuristic_payload.warnings.append(
                 f"已使用本地规则提取 {len(heuristic_payload.items)} 项。"
             )
             return heuristic_payload, "heuristic"
+
+        if prefer_llm and heuristic_payload.items:
+            heuristic_payload.warnings.append(
+                f"检测到 OCR 来源的 PDF，优先尝试 {backend or 'LLM'} 抽取，再以本地规则兜底。"
+            )
 
         if backend is None:
             if not heuristic_payload.items:
@@ -156,6 +162,12 @@ class ParameterExtractor:
             return heuristic_payload, "heuristic"
 
         return llm_payload, backend
+
+    def _should_prefer_llm(self, documents: list[ParsedDocument]) -> bool:
+        return any(
+            document.file_type == "pdf" and "ocr" in document.parser.lower()
+            for document in documents
+        )
 
     def _resolve_backend(self) -> Literal["openai", "deepseek"] | None:
         provider = self.settings.llm_provider
@@ -270,7 +282,7 @@ class ParameterExtractor:
     ) -> list[tuple[str, str]]:
         chunks: list[tuple[str, str]] = []
 
-        for document, raw_text in zip(documents, raw_texts, strict=False):
+        for document, raw_text in zip(documents, raw_texts):
             for index, chunk in enumerate(self._split_text_for_llm(raw_text), start=1):
                 label = f"{document.filename}#chunk-{index}"
                 prompt = (
@@ -420,7 +432,7 @@ class ParameterExtractor:
         include_json_hint: bool,
     ) -> str:
         prompt_parts: list[str] = []
-        for document, text in zip(documents, raw_texts, strict=False):
+        for document, text in zip(documents, raw_texts):
             prompt_parts.append(
                 f"# 文件: {document.filename}\n"
                 f"解析器: {document.parser}\n"

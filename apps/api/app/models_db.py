@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,11 +20,11 @@ class ProviderConfig(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     provider_type: Mapped[str] = mapped_column(String(50), index=True, comment="提供商类型: baidu_ocr, tencent_ocr, deepseek, openai")
     name: Mapped[str] = mapped_column(String(100), comment="显示名称")
-    api_key: Mapped[str | None] = mapped_column(Text, nullable=True, comment="API Key (加密存储)")
-    secret_key: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Secret Key (加密存储)")
-    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="基础URL")
-    model: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="模型名称")
-    extra_config: Mapped[str | None] = mapped_column(Text, nullable=True, comment="额外配置JSON")
+    api_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="API Key (加密存储)")
+    secret_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Secret Key (加密存储)")
+    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="基础URL")
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="模型名称")
+    extra_config: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="额外配置JSON")
     is_active: Mapped[bool] = mapped_column(default=True, comment="是否启用")
     is_encrypted: Mapped[bool] = mapped_column(default=False, comment="是否已加密")
     created_at: Mapped[datetime] = mapped_column(
