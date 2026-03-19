@@ -1,7 +1,12 @@
-import type { ExportFormat, InquiryResult, ProviderConfig } from "@/lib/types";
+import type {
+  ExportFormat,
+  InquiryJobSnapshot,
+  InquiryResult,
+  ProjectSummary,
+  ProviderConfig,
+} from "@/lib/types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 async function ensureOk(response: Response) {
   if (response.ok) {
@@ -19,20 +24,26 @@ async function ensureOk(response: Response) {
   throw new Error(message);
 }
 
-// 配置管理 API
 export async function getConfigs(): Promise<ProviderConfig[]> {
   const response = await fetch(`${API_BASE_URL}/configs`);
   await ensureOk(response);
   return (await response.json()) as ProviderConfig[];
 }
 
-export async function getConfig(providerType: string): Promise<ProviderConfig & { api_key?: string; secret_key?: string }> {
+export async function getConfig(
+  providerType: string,
+): Promise<ProviderConfig & { api_key?: string; secret_key?: string }> {
   const response = await fetch(`${API_BASE_URL}/configs/${providerType}`);
   await ensureOk(response);
-  return (await response.json()) as ProviderConfig & { api_key?: string; secret_key?: string };
+  return (await response.json()) as ProviderConfig & {
+    api_key?: string;
+    secret_key?: string;
+  };
 }
 
-export async function createConfig(config: Omit<ProviderConfig, "id" | "created_at" | "updated_at">): Promise<ProviderConfig> {
+export async function createConfig(
+  config: Omit<ProviderConfig, "id" | "created_at" | "updated_at">,
+): Promise<ProviderConfig> {
   const response = await fetch(`${API_BASE_URL}/configs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,7 +53,10 @@ export async function createConfig(config: Omit<ProviderConfig, "id" | "created_
   return (await response.json()) as ProviderConfig;
 }
 
-export async function updateConfig(providerType: string, config: Omit<ProviderConfig, "id" | "created_at" | "updated_at">): Promise<ProviderConfig> {
+export async function updateConfig(
+  providerType: string,
+  config: Omit<ProviderConfig, "id" | "created_at" | "updated_at">,
+): Promise<ProviderConfig> {
   const response = await fetch(`${API_BASE_URL}/configs/${providerType}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -59,24 +73,79 @@ export async function deleteConfig(providerType: string): Promise<void> {
   await ensureOk(response);
 }
 
-export async function getProviderTypes(): Promise<Array<{ type: string; name: string; description: string; fields: string[] }>> {
+export async function getProviderTypes(): Promise<
+  Array<{ type: string; name: string; description: string; fields: string[] }>
+> {
   const response = await fetch(`${API_BASE_URL}/configs/providers`);
   await ensureOk(response);
-  return (await response.json()) as Array<{ type: string; name: string; description: string; fields: string[] }>;
+  return (await response.json()) as Array<{
+    type: string;
+    name: string;
+    description: string;
+    fields: string[];
+  }>;
 }
 
-export async function parseInquiry(files: File[], maxPages?: number): Promise<InquiryResult> {
+export async function parseInquiry(
+  files: File[],
+  projectId: number,
+): Promise<InquiryResult> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const url = maxPages ? `${API_BASE_URL}/inquiry/parse?max_pages=${maxPages}` : `${API_BASE_URL}/inquiry/parse`;
+  const query = new URLSearchParams();
+  query.set("project_id", String(projectId));
 
-  const response = await fetch(url, {
+  const suffix = query.size ? `?${query.toString()}` : "";
+  const response = await fetch(`${API_BASE_URL}/inquiry/parse${suffix}`, {
     method: "POST",
     body: formData,
   });
   await ensureOk(response);
   return (await response.json()) as InquiryResult;
+}
+
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/projects`);
+  await ensureOk(response);
+  return (await response.json()) as ProjectSummary[];
+}
+
+export async function createProject(payload: {
+  name: string;
+  description?: string;
+}): Promise<ProjectSummary> {
+  const response = await fetch(`${API_BASE_URL}/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(response);
+  return (await response.json()) as ProjectSummary;
+}
+
+export async function createInquiryJob(
+  files: File[],
+  projectId: number,
+): Promise<InquiryJobSnapshot> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+
+  const response = await fetch(
+    `${API_BASE_URL}/inquiry/jobs?project_id=${encodeURIComponent(String(projectId))}`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+  await ensureOk(response);
+  return (await response.json()) as InquiryJobSnapshot;
+}
+
+export async function getInquiryJob(jobId: string): Promise<InquiryJobSnapshot> {
+  const response = await fetch(`${API_BASE_URL}/inquiry/jobs/${encodeURIComponent(jobId)}`);
+  await ensureOk(response);
+  return (await response.json()) as InquiryJobSnapshot;
 }
 
 export async function exportInquiry(
@@ -93,4 +162,3 @@ export async function exportInquiry(
   await ensureOk(response);
   return response.blob();
 }
-

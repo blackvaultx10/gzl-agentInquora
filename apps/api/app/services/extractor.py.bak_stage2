@@ -1,0 +1,682 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+from collections.abc import Iterable
+from typing import Literal
+
+from openai import OpenAI
+from pydantic import BaseModel, Field, ValidationError
+
+from app.config import Settings
+from app.config_manager import get_config_manager
+from app.models import InquiryItem, ParsedDocument
+
+
+# 设备清单（需厂家询价，单价高，要技术参数）
+EQUIPMENT_CATEGORY_MAP = {
+    "插座箱": "电气设备",
+    "插座": "电气设备",
+    "控制箱": "电气设备",
+    "集中电源": "电气设备",
+    "泵": "泵组设备",
+    "风机": "通风设备",
+    "配电箱": "电气设备",
+    "灭火器": "消防设备",
+    "空调": "暖通设备",
+    "机组": "成套设备",
+    "控制柜": "电气设备",
+    "变压器": "电气设备",
+}
+
+# 物料表/材料表（可市场询价，单价低，按规格买）
+MATERIAL_CATEGORY_MAP = {
+    "阀": "阀门",
+    "阀门": "阀门",
+    "电缆桥架": "电气辅材",
+    "钢管": "管材",
+    "风管": "风系统材料",
+    "水管": "水系统材料",
+    "螺栓": "紧固件",
+    "法兰": "管件",
+    "弯头": "管件",
+    "三通": "管件",
+    "保温材料": "绝热材料",
+    "支架": "支吊架",
+}
+
+# 合并用于识别（保持向后兼容）
+NAME_CATEGORY_MAP = {**EQUIPMENT_CATEGORY_MAP, **MATERIAL_CATEGORY_MAP}
+
+UNIT_PATTERN = r"(台|套|个|只|件|具|组|米|m|㎡|m2|项|EA|PCS|pcs)"
+QTY_PATTERN = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<qty>\d+(?:\.\d+)?)\s*(?P<unit>{UNIT_PATTERN})(?![A-Za-z0-9/])"
+)
+SPEC_PATTERN = re.compile(r"(DN\d+|Q=\S+|H=\S+|Φ\S+|φ\S+|[A-Z]{1,6}-\d+(?:-\d+)?)")
+ELECTRICAL_SPEC_PATTERN = re.compile(r"((?:AC|DC)\s*\d+\s*V(?:\s*\d+\s*A)?)", re.IGNORECASE)
+
+HEURISTIC_ANNOTATION_KEYWORDS = (
+    "备注",
+    "图例",
+    "说明",
+    "设计依据",
+    "通信距离",
+    "总长度",
+    "预留",
+    "预埋",
+    "敷设",
+    "安装高度",
+    "安装位置",
+    "距地",
+    "离地",
+    "系统图",
+    "原理图",
+    "接线图",
+)
+
+HEURISTIC_PROCUREMENT_KEYWORDS = (
+    "插座",
+    "插座箱",
+    "配电箱",
+    "配电柜",
+    "控制箱",
+    "控制柜",
+    "电源箱",
+    "切换箱",
+    "双电源",
+    "泵",
+    "风机",
+    "电缆",
+    "线缆",
+    "导线",
+    "电线",
+    "桥架",
+    "线槽",
+    "钢管",
+    "风管",
+    "水管",
+)
+
+HEURISTIC_LENGTH_MATERIAL_KEYWORDS = (
+    "电缆",
+    "线缆",
+    "导线",
+    "电线",
+    "桥架",
+    "线槽",
+    "钢管",
+    "风管",
+    "水管",
+)
+
+BOX_IDENTIFIER_PATTERN = re.compile(
+    r"^[A-Z]\d[A-Z0-9-]*?(?:ALE|AL|AP)[A-Za-z0-9-]*$",
+    re.IGNORECASE,
+)
+
+
+
+class ExtractionPayload(BaseModel):
+    items: list[InquiryItem] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class StructuredExtractionResponse(BaseModel):
+    items: list[InquiryItem] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ParameterExtractor:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.config_manager = get_config_manager()
+        # 优先从环境变量加载
+        self.openai_client = None
+        self.deepseek_client = None
+        if settings.openai_api_key:
+            self.openai_client = OpenAI(api_key=settings.openai_api_key)
+        if settings.deepseek_api_key:
+            self.deepseek_client = OpenAI(
+                api_key=settings.deepseek_api_key,
+                base_url=settings.deepseek_base_url,
+            )
+        # 如果环境变量没有，尝试从数据库加载
+        if not self.openai_client and not self.deepseek_client:
+            try:
+                self._load_clients_from_db()
+            except Exception:
+                pass  # 数据库未初始化或出错，保持 None
+
+    def _load_clients_from_db(self) -> None:
+        """从数据库同步加载LLM客户端配置。"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        llm_config = loop.run_until_complete(self.config_manager.get_llm_config())
+        if not llm_config:
+            return
+
+        api_key = llm_config.get("api_key")
+        base_url = llm_config.get("base_url") or "https://api.deepseek.com"
+        provider = llm_config.get("provider")
+        model = llm_config.get("model")
+
+        if not api_key:
+            return
+
+        # 保存模型名称供后续使用
+        self._db_model = model
+        self._db_provider = provider
+
+        if provider == "deepseek":
+            self.deepseek_client = OpenAI(api_key=api_key, base_url=base_url)
+        elif provider == "openai":
+            self.openai_client = OpenAI(api_key=api_key, base_url=base_url)
+
+    def extract(self, documents: list[ParsedDocument], raw_texts: list[str]) -> tuple[ExtractionPayload, str]:
+        heuristic_payload = self._heuristic_extract(documents, raw_texts)
+        backend = self._resolve_backend()
+        prefer_llm = self._should_prefer_llm(documents)
+
+        if self._should_force_local_heuristic(documents):
+            heuristic_payload.warnings.append("多份 CAD 图纸项目已按分图本地规则抽取，跳过整包 LLM 识别。")
+            return heuristic_payload, "heuristic"
+
+        if len(heuristic_payload.items) >= 3 and not prefer_llm:
+            heuristic_payload.warnings.append(f"已使用本地规则提取 {len(heuristic_payload.items)} 项。")
+            return heuristic_payload, "heuristic"
+
+        if prefer_llm and heuristic_payload.items:
+            heuristic_payload.warnings.append(
+                f"检测到 OCR 来源的 PDF，优先尝试 {backend or 'LLM'} 抽取，再以本地规则兜底。"
+            )
+
+        if backend is None:
+            if not heuristic_payload.items:
+                heuristic_payload.warnings.append("未配置可用 LLM，已使用本地规则抽取。")
+            return heuristic_payload, "heuristic"
+
+        try:
+            if backend == "openai":
+                llm_payload = self._openai_extract(documents, raw_texts)
+            else:
+                llm_payload = self._deepseek_extract(documents, raw_texts)
+        except Exception as exc:
+            if heuristic_payload.items:
+                heuristic_payload.warnings.append(
+                    f"{backend} 抽取失败，使用本地规则结果: {exc}"
+                )
+                return heuristic_payload, "heuristic"
+            heuristic_payload.warnings.append(
+                f"{backend} 抽取失败，已回退本地规则: {exc}"
+            )
+            return heuristic_payload, "heuristic"
+
+        if not llm_payload.items:
+            if heuristic_payload.items:
+                heuristic_payload.warnings.append(
+                    f"{backend} 未返回可用清单，使用本地规则结果。"
+                )
+                return heuristic_payload, "heuristic"
+            heuristic_payload.warnings.append(
+                f"{backend} 未返回可用清单，已回退本地规则。"
+            )
+            return heuristic_payload, "heuristic"
+
+        return llm_payload, backend
+
+    def _should_prefer_llm(self, documents: list[ParsedDocument]) -> bool:
+        return any(
+            document.file_type == "pdf" and "ocr" in document.parser.lower()
+            for document in documents
+        )
+
+    def _should_force_local_heuristic(self, documents: list[ParsedDocument]) -> bool:
+        cad_types = {"dxf", "dwg"}
+        return len(documents) > 1 and all(document.file_type in cad_types for document in documents)
+
+    def _resolve_backend(self) -> Literal["openai", "deepseek"] | None:
+        provider = self.settings.llm_provider
+        if provider == "none":
+            return None
+        if provider == "openai":
+            return "openai" if self.openai_client else None
+        if provider == "deepseek":
+            return "deepseek" if self.deepseek_client else None
+
+        # 自动模式：检查数据库配置的provider
+        if hasattr(self, '_db_provider'):
+            if self._db_provider == "deepseek" and self.deepseek_client:
+                return "deepseek"
+            if self._db_provider == "openai" and self.openai_client:
+                return "openai"
+
+        if self.deepseek_client:
+            return "deepseek"
+        if self.openai_client:
+            return "openai"
+        return None
+
+    def _get_model(self, default_model: str) -> str:
+        """获取模型名称，优先使用数据库配置。"""
+        if hasattr(self, '_db_model') and self._db_model:
+            return self._db_model
+        return default_model
+
+    def _openai_extract(
+        self,
+        documents: list[ParsedDocument],
+        raw_texts: list[str],
+    ) -> ExtractionPayload:
+        if not self.openai_client:
+            raise RuntimeError("OpenAI client is not configured.")
+
+        model = self._get_model(self.settings.openai_model)
+        response = self.openai_client.responses.parse(
+            model=model,
+            reasoning={"effort": "none"},
+            input=[
+                {"role": "system", "content": self._build_system_prompt()},
+                {
+                    "role": "user",
+                    "content": self._build_user_prompt(documents, raw_texts, include_json_hint=False),
+                },
+            ],
+            text={"verbosity": "low"},
+            text_format=StructuredExtractionResponse,
+        )
+        if response.output_parsed:
+            return ExtractionPayload(**response.output_parsed.model_dump())
+        raise RuntimeError("OpenAI structured output is empty.")
+
+    def _deepseek_extract(
+        self,
+        documents: list[ParsedDocument],
+        raw_texts: list[str],
+    ) -> ExtractionPayload:
+        if not self.deepseek_client:
+            raise RuntimeError("DeepSeek client is not configured.")
+
+        model = self._get_model(self.settings.deepseek_model)
+        collected_items: list[InquiryItem] = []
+        collected_warnings: list[str] = []
+        success_count = 0
+
+        for label, prompt in self._iter_deepseek_chunks(documents, raw_texts):
+            try:
+                response = self.deepseek_client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": self._build_system_prompt(include_json_output_rules=True),
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                    max_tokens=3000,
+                )
+                content = response.choices[0].message.content or ""
+                if not content.strip():
+                    raise RuntimeError("DeepSeek returned empty content.")
+
+                validated, repaired = self._coerce_deepseek_payload(content)
+                collected_items.extend(validated.items)
+                collected_warnings.extend(validated.warnings)
+                if repaired:
+                    collected_warnings.append(f"{label}: DeepSeek 返回了非严格 JSON，系统已自动修复。")
+                success_count += 1
+            except Exception as exc:
+                collected_warnings.append(f"{label}: DeepSeek 抽取失败: {exc}")
+
+        if success_count == 0:
+            raise RuntimeError("; ".join(collected_warnings[:3]) or "DeepSeek extraction failed.")
+
+        return ExtractionPayload(
+            items=self._deduplicate(collected_items),
+            warnings=collected_warnings,
+        )
+
+    def _iter_deepseek_chunks(
+        self,
+        documents: list[ParsedDocument],
+        raw_texts: list[str],
+    ) -> list[tuple[str, str]]:
+        chunks: list[tuple[str, str]] = []
+
+        for document, raw_text in zip(documents, raw_texts):
+            for index, chunk in enumerate(self._split_text_for_llm(raw_text), start=1):
+                label = f"{document.filename}#chunk-{index}"
+                prompt = (
+                    f"# 文件: {document.filename}\n"
+                    f"解析器: {document.parser}\n"
+                    f"分段: {index}\n"
+                    f"内容:\n{chunk}\n\n"
+                    '请只输出 json，例如：{"items":[{"name":"离心泵","category":"泵组设备","specification":"Q=20m3/h H=30m","material":null,"quantity":2,"unit":"台","source_snippet":"离心泵 Q=20m3/h H=30m 2台","confidence":0.8}],"warnings":[]}'
+                )
+                chunks.append((label, prompt))
+
+        return chunks
+
+    def _split_text_for_llm(self, text: str) -> list[str]:
+        page_chunks = [
+            chunk.strip()
+            for chunk in re.split(r"(?=\[第\s*\d+\s*页(?:\s*OCR)?\])", text)
+            if chunk.strip()
+        ]
+        if not page_chunks:
+            page_chunks = [text.strip()]
+
+        max_chars = self.settings.llm_max_input_chars
+        result: list[str] = []
+        buffer: list[str] = []
+        current_length = 0
+
+        for chunk in page_chunks:
+            chunk = chunk[:max_chars]
+            additional_length = len(chunk) + (2 if buffer else 0)
+            if buffer and current_length + additional_length > max_chars:
+                result.append("\n\n".join(buffer))
+                buffer = [chunk]
+                current_length = len(chunk)
+            else:
+                buffer.append(chunk)
+                current_length += additional_length
+
+        if buffer:
+            result.append("\n\n".join(buffer))
+
+        return result
+
+    def _coerce_deepseek_payload(
+        self,
+        content: str,
+    ) -> tuple[StructuredExtractionResponse, bool]:
+        direct_error: Exception | None = None
+        candidates = [content]
+
+        extracted_object = self._extract_first_json_object(content)
+        if extracted_object and extracted_object != content:
+            candidates.append(extracted_object)
+
+        for candidate in candidates:
+            try:
+                parsed = json.loads(candidate)
+                return StructuredExtractionResponse.model_validate(parsed), False
+            except (json.JSONDecodeError, ValidationError) as exc:
+                direct_error = exc
+
+        repaired = self._repair_json_with_deepseek(content)
+        try:
+            parsed = json.loads(repaired)
+            return StructuredExtractionResponse.model_validate(parsed), True
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise RuntimeError(f"DeepSeek JSON parse failed: {exc}") from (direct_error or exc)
+
+    def _extract_first_json_object(self, text: str) -> str | None:
+        start = text.find("{")
+        if start < 0:
+            return None
+
+        depth = 0
+        in_string = False
+        escape = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+        return None
+
+    def _repair_json_with_deepseek(self, broken_json: str) -> str:
+        if not self.deepseek_client:
+            raise RuntimeError("DeepSeek client is not configured.")
+
+        response = self.deepseek_client.chat.completions.create(
+            model=self.settings.deepseek_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "你是 JSON 修复器。"
+                        "请把用户给出的无效 JSON 修复为严格合法的 JSON 对象。"
+                        "只输出 JSON。"
+                        "顶层字段必须是 items 和 warnings。"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": broken_json[:20000],
+                },
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+            max_tokens=4000,
+        )
+        content = response.choices[0].message.content or ""
+        if not content.strip():
+            raise RuntimeError("DeepSeek JSON repair returned empty content.")
+        return content
+
+    def _build_system_prompt(self, include_json_output_rules: bool = False) -> str:
+        prompt = (
+            "你是工程询价助理。请从 CAD、DWG、DXF、PDF、OCR 文本中提取可以用于报价的设备和材料清单。"
+            "只保留与采购或询价有关的条目。"
+            "输出字段必须包含：name, category, specification, material, quantity, unit, source_snippet, confidence。"
+            "quantity 必须是数字，无法判断时填 1；unit 缺失时填 项；"
+            "不要编造供应商、单价或总价。"
+        )
+        if include_json_output_rules:
+            prompt += (
+                "你必须输出 json 对象，且根字段为 items 和 warnings。"
+                "items 是数组，warnings 是字符串数组。"
+            )
+        return prompt
+
+    def _build_user_prompt(
+        self,
+        documents: list[ParsedDocument],
+        raw_texts: list[str],
+        include_json_hint: bool,
+    ) -> str:
+        prompt_parts: list[str] = []
+        for document, text in zip(documents, raw_texts):
+            prompt_parts.append(
+                f"# 文件: {document.filename}\n"
+                f"解析器: {document.parser}\n"
+                f"内容:\n{text[: self.settings.llm_max_input_chars]}\n"
+            )
+
+        if include_json_hint:
+            prompt_parts.append(
+                '请输出 json，例如：{"items":[{"name":"离心泵","category":"泵组设备","specification":"Q=20m3/h H=30m","material":null,"quantity":2,"unit":"台","source_snippet":"离心泵 Q=20m3/h H=30m 2台","confidence":0.8}],"warnings":[]}'
+            )
+        return "\n\n".join(prompt_parts)
+
+    def _should_skip_document_role(self, document: ParsedDocument) -> bool:
+        return document.document_role in {"legend", "spec"}
+
+    def _attach_source_document(self, item: InquiryItem, filename: str) -> InquiryItem:
+        return item.model_copy(update={"source_documents": sorted(set(item.source_documents + [filename]))})
+
+    def _extract_box_identifier_item(self, raw_line: str, document: ParsedDocument) -> InquiryItem | None:
+        if document.document_role not in {"system", "plan"}:
+            return None
+
+        body = raw_line.split("] ", 1)[-1].strip(" -:：,，;；")
+        if not body:
+            return None
+        if ":" in body or "：" in body or " " in body:
+            return None
+        if body.startswith(("由", "从", "至", "接", "进", "出")):
+            return None
+        if any(token in body for token in ("引来", "引至", "接至", "回路", "系统", "图例")):
+            return None
+        if not BOX_IDENTIFIER_PATTERN.fullmatch(body.upper()):
+            return None
+
+        box_name = self._infer_box_name_from_identifier(body)
+        if not box_name:
+            return None
+
+        return InquiryItem(
+            name=f"{body}-{box_name}",
+            category="电气设备",
+            quantity=1.0,
+            unit="台",
+            source_documents=[document.filename],
+            source_snippet=raw_line[:180],
+            confidence=0.9,
+        )
+
+    def _infer_box_name_from_identifier(self, identifier: str) -> str | None:
+        upper = identifier.upper()
+        if "ALE" in upper:
+            return "应急照明配电箱"
+        if "AP" in upper:
+            return "电力配电箱"
+        if "AL" in upper:
+            return "照明配电箱"
+        return None
+
+    def _looks_like_annotation(self, text: str) -> bool:
+        normalized = text.strip()
+        if not normalized:
+            return True
+        if any(keyword in normalized for keyword in HEURISTIC_ANNOTATION_KEYWORDS):
+            return True
+        if normalized.startswith(("由", "从", "在", "沿", "当", "其", "应")) and any(
+            token in normalized for token in ("引来", "引至", "接至", "通信距离", "总长度", "预留", "敷设", "安装位置")
+        ):
+            return True
+        return False
+
+    def _looks_like_procurement_item(self, text: str) -> bool:
+        return any(keyword in text for keyword in HEURISTIC_PROCUREMENT_KEYWORDS)
+
+    def _looks_like_length_material(self, text: str) -> bool:
+        return any(keyword in text for keyword in HEURISTIC_LENGTH_MATERIAL_KEYWORDS)
+
+    def _heuristic_extract(self, documents: list[ParsedDocument], raw_texts: Iterable[str]) -> ExtractionPayload:
+        items: list[InquiryItem] = []
+        warnings: list[str] = []
+
+        for document, text in zip(documents, raw_texts):
+            if self._should_skip_document_role(document):
+                continue
+
+            for line in text.splitlines():
+                normalized = " ".join(line.split()).strip(" -:：,，;；")
+                if len(normalized) < 3:
+                    continue
+
+                box_item = self._extract_box_identifier_item(line, document)
+                if box_item is not None:
+                    items.append(box_item)
+                    continue
+
+                if self._looks_like_annotation(normalized):
+                    continue
+
+                qty_matches = list(QTY_PATTERN.finditer(normalized))
+                if not qty_matches:
+                    continue
+                qty_match = qty_matches[-1]
+
+                prefix = normalized[: qty_match.start()].strip(" -:：,，;；")
+                if not prefix:
+                    continue
+                if self._looks_like_annotation(prefix):
+                    continue
+                if not self._looks_like_procurement_item(prefix):
+                    continue
+
+                segments = [segment.strip() for segment in re.split(r"[,，;；]+", prefix) if segment.strip()]
+                head = segments[0]
+                name_tokens = re.split(r"\s+", head)
+                name = name_tokens[0]
+                spec_tokens = name_tokens[1:]
+
+                extra_spec_matches = SPEC_PATTERN.findall(prefix)
+                if extra_spec_matches:
+                    spec_tokens.extend(extra_spec_matches)
+                electrical_spec_matches = ELECTRICAL_SPEC_PATTERN.findall(prefix)
+                if electrical_spec_matches:
+                    spec_tokens.extend(match.replace(" ", "") for match in electrical_spec_matches)
+
+                specification = " / ".join(
+                    dict.fromkeys(token for token in spec_tokens if token and token != name)
+                ) or None
+                category = self._infer_category(prefix)
+                quantity = float(qty_match.group("qty"))
+                unit = qty_match.group("unit")
+                if unit in {"米", "m"} and not self._looks_like_length_material(prefix):
+                    continue
+                confidence = 0.58 if specification else 0.5
+
+                items.append(
+                    InquiryItem(
+                        name=name,
+                        category=category,
+                        specification=specification,
+                        quantity=quantity,
+                        unit=unit,
+                        material=self._infer_material(prefix),
+                        source_documents=[document.filename],
+                        source_snippet=normalized[:180],
+                        confidence=confidence,
+                    )
+                )
+
+        if not items:
+            warnings.append("未从解析文本中识别到数量明确的询价条目。")
+
+        return ExtractionPayload(items=self._deduplicate(items), warnings=warnings)
+
+    def _infer_category(self, text: str) -> str | None:
+        for token, category in NAME_CATEGORY_MAP.items():
+            if token in text:
+                return category
+        return None
+
+    def _infer_material(self, text: str) -> str | None:
+        for material in ("不锈钢", "碳钢", "铜", "PVC", "镀锌钢", "铸铁"):
+            if material in text:
+                return material
+        return None
+
+    def _deduplicate(self, items: list[InquiryItem]) -> list[InquiryItem]:
+        seen: dict[tuple[str, str | None, float, str], InquiryItem] = {}
+        for item in items:
+            key = (item.name, item.specification, item.quantity, item.unit)
+            if key not in seen:
+                seen[key] = item
+                continue
+            current = seen[key]
+            current.source_documents = sorted(set(current.source_documents) | set(item.source_documents))
+            current.source_snippet = f"{current.source_snippet} | {item.source_snippet}"[:280]
+            current.confidence = max(current.confidence, item.confidence)
+            current.anomalies = sorted(set(current.anomalies) | set(item.anomalies))
+        return list(seen.values())

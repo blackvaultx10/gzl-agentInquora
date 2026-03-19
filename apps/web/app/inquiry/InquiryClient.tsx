@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  CalculatorOutlined,
   CloudUploadOutlined,
   DownloadOutlined,
   FileSearchOutlined,
   FileTextOutlined,
-  CalculatorOutlined,
+  FolderAddOutlined,
+  FolderOpenOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import {
@@ -14,49 +16,69 @@ import {
   Badge,
   Button,
   Card,
+  Col,
+  Divider,
   Empty,
+  Form,
   Input,
+  Modal,
   Progress,
+  Row,
   Select,
   Space,
   Statistic,
   Table,
-  TableProps,
+  Tag,
+  Tooltip,
   Typography,
   Upload,
-  Steps,
-  Tag,
-  Divider,
-  Row,
-  Col,
-  Tooltip,
 } from "antd";
-import type { UploadFile } from "antd";
-import { useMemo, useState } from "react";
+import type { TableProps, UploadFile } from "antd";
+import { useEffect, useMemo, useState } from "react";
 
-import { exportInquiry, parseInquiry } from "@/lib/api";
-import type { ExportFormat, InquiryItem, InquiryResult } from "@/lib/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+import {
+  createInquiryJob,
+  createProject,
+  exportInquiry,
+  getInquiryJob,
+  listProjects,
+} from "@/lib/api";
+import type {
+  ExportFormat,
+  InquiryItem,
+  InquiryJobSnapshot,
+  InquiryResult,
+  ProjectSummary,
+} from "@/lib/types";
 
 const { Dragger } = Upload;
 const { Paragraph, Text, Title } = Typography;
 
 const anomalyColorMap: Record<string, string> = {
-  no_price_match: "volcano",
-  low_match_confidence: "gold",
-  unit_mismatch: "purple",
-  large_line_amount: "cyan",
+  unmapped_boq_item: "volcano",
+  reference_low_confidence: "gold",
   invalid_quantity: "red",
 };
 
 const anomalyTextMap: Record<string, string> = {
-  no_price_match: "无匹配价格",
-  low_match_confidence: "匹配置信度低",
-  unit_mismatch: "单位异常",
-  large_line_amount: "金额过大",
+  unmapped_boq_item: "未套用清单编码",
+  reference_low_confidence: "参考价置信度低",
   invalid_quantity: "数量异常",
 };
+
+interface ProgressState {
+  visible: boolean;
+  percent: number;
+  total: number;
+  current: number;
+  step: string;
+  currentFileName?: string | null;
+}
+
+interface CreateProjectForm {
+  name: string;
+  description?: string;
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -67,207 +89,429 @@ function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
-interface ProgressState {
-  visible: boolean;
-  percent: number;
-  current: number;
-  total: number;
-  step: string;
-  detail: string;
-  filename: string;
+function formatCurrency(value?: number | null) {
+  if (value == null) {
+    return "-";
+  }
+  return `¥${value.toLocaleString("zh-CN")}`;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function buildProgressState(snapshot: InquiryJobSnapshot): ProgressState {
+  return {
+    visible: true,
+    percent: snapshot.progress.percent,
+    total: snapshot.progress.total,
+    current: snapshot.progress.current,
+    step: snapshot.progress.step,
+    currentFileName: snapshot.progress.current_file_name,
+  };
 }
 
 export function InquiryClient() {
   const { message } = App.useApp();
-  const [currentStep, setCurrentStep] = useState(0);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
   const [result, setResult] = useState<InquiryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [maxPages, setMaxPages] = useState<number>(3);
   const [progress, setProgress] = useState<ProgressState>({
     visible: false,
     percent: 0,
-    current: 0,
     total: 0,
+    current: 0,
     step: "",
-    detail: "",
-    filename: "",
+    currentFileName: null,
   });
+  const [projectForm] = Form.useForm<CreateProjectForm>();
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
 
   const columns: NonNullable<TableProps<InquiryItem>["columns"]> = useMemo(
     () => [
-      { title: "序号", key: "index", width: 60, render: (_, __, index) => index + 1 },
       {
-        title: "项目名称",
+        title: "序号",
+        key: "index",
+        width: 64,
+        render: (_, __, index) => index + 1,
+      },
+      {
+        title: "清单编码",
+        dataIndex: "boq_code",
+        key: "boq_code",
+        width: 130,
+        render: (value?: string | null) => value || "-",
+      },
+      {
+        title: "清单项目",
         dataIndex: "name",
         key: "name",
         fixed: "left",
-        width: 200,
+        width: 180,
         render: (value: string, record) => (
           <div>
-            <Text strong className="text-ink">{value}</Text>
-            {record.category && <div className="text-xs text-ink-muted">{record.category}</div>}
+            <Text strong className="text-ink">
+              {value}
+            </Text>
+            {record.category && (
+              <div className="text-xs text-ink-muted">{record.category}</div>
+            )}
           </div>
         ),
       },
-      { title: "规格型号", dataIndex: "specification", key: "specification", width: 160, render: (v?: string | null) => v || "-" },
-      { title: "材质", dataIndex: "material", key: "material", width: 100, render: (v?: string | null) => v || "-" },
-      { title: "数量", key: "quantity", width: 100, align: "right", render: (_, r) => <span className="font-mono">{r.quantity} {r.unit}</span> },
-      { title: "单价", dataIndex: "unit_price", key: "unit_price", width: 120, align: "right", render: (v?: number | null) =>
-        v == null ? <span className="text-ink-muted">-</span> : <span className="font-mono text-ink">¥{v.toLocaleString("zh-CN")}</span>
+      {
+        title: "项目特征",
+        dataIndex: "specification",
+        key: "specification",
+        width: 240,
+        render: (value?: string | null) => value || "-",
       },
-      { title: "合价", dataIndex: "total_price", key: "total_price", width: 130, align: "right", render: (v?: number | null) =>
-        v == null ? <span className="text-ink-muted">-</span> : <span className="font-mono font-semibold text-primary">¥{v.toLocaleString("zh-CN")}</span>
+      {
+        title: "工程量",
+        key: "quantity",
+        width: 110,
+        align: "right",
+        render: (_, record) => (
+          <span className="font-mono">
+            {record.quantity} {record.unit}
+          </span>
+        ),
       },
-      { title: "状态", dataIndex: "anomalies", key: "anomalies", width: 120, render: (anomalies: string[]) =>
-        anomalies.length ? (
-          <Space size={[0, 4]} wrap>
-            {anomalies.map((a) => <Tag className="text-xs" color={anomalyColorMap[a] ?? "default"} key={a}>{anomalyTextMap[a] || a}</Tag>)}
-          </Space>
-        ) : <Tag className="text-xs" color="success">已匹配</Tag>
+      {
+        title: "询价方式",
+        dataIndex: "inquiry_method",
+        key: "inquiry_method",
+        width: 120,
+        render: (value?: string | null) => value || "待定",
+      },
+      {
+        title: "来源图纸",
+        dataIndex: "source_documents",
+        key: "source_documents",
+        width: 220,
+        render: (value: string[]) =>
+          value.length ? value.join("、") : <span className="text-ink-muted">-</span>,
+      },
+      {
+        title: "参考单价",
+        dataIndex: "reference_unit_price",
+        key: "reference_unit_price",
+        width: 130,
+        align: "right",
+        render: (value?: number | null) => (
+          <span className="font-mono text-ink">{formatCurrency(value)}</span>
+        ),
+      },
+      {
+        title: "参考合价",
+        dataIndex: "reference_total_price",
+        key: "reference_total_price",
+        width: 140,
+        align: "right",
+        render: (value?: number | null) => (
+          <span className="font-mono font-semibold text-primary">
+            {formatCurrency(value)}
+          </span>
+        ),
+      },
+      {
+        title: "状态",
+        dataIndex: "anomalies",
+        key: "anomalies",
+        width: 180,
+        render: (anomalies: string[], record) => {
+          if (anomalies.length) {
+            return (
+              <Space size={[0, 4]} wrap>
+                {anomalies.map((anomaly) => (
+                  <Tag
+                    className="text-xs"
+                    color={anomalyColorMap[anomaly] ?? "default"}
+                    key={anomaly}
+                  >
+                    {anomalyTextMap[anomaly] || anomaly}
+                  </Tag>
+                ))}
+              </Space>
+            );
+          }
+          if (record.reference_unit_price != null) {
+            return <Tag color="success">有参考价</Tag>;
+          }
+          return <Tag>待询价</Tag>;
+        },
       },
     ],
-    []
+    [],
   );
 
+  useEffect(() => {
+    void loadProjectOptions();
+  }, []);
+
+  async function loadProjectOptions() {
+    setProjectsLoading(true);
+    try {
+      const projectList = await listProjects();
+      setProjects(projectList);
+      setSelectedProjectId((current) => current ?? projectList[0]?.id);
+    } catch (currentError) {
+      const messageText =
+        currentError instanceof Error ? currentError.message : "项目列表加载失败";
+      setError(messageText);
+    } finally {
+      setProjectsLoading(false);
+    }
+  }
+
+  async function handleCreateProject(values: CreateProjectForm) {
+    setCreatingProject(true);
+    try {
+      const project = await createProject(values);
+      setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+      setSelectedProjectId(project.id);
+      setResult(null);
+      setFileList([]);
+      setError(null);
+      setCreateModalOpen(false);
+      projectForm.resetFields();
+      message.success(`已创建项目 ${project.name}`);
+    } catch (currentError) {
+      const messageText =
+        currentError instanceof Error ? currentError.message : "项目创建失败";
+      message.error(messageText);
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  async function pollInquiryJob(jobId: string): Promise<InquiryResult> {
+    for (;;) {
+      const snapshot = await getInquiryJob(jobId);
+      setProgress(buildProgressState(snapshot));
+
+      if (snapshot.status === "completed" && snapshot.result) {
+        return snapshot.result;
+      }
+
+      if (snapshot.status === "failed") {
+        throw new Error(snapshot.error || "任务处理失败");
+      }
+
+      await sleep(1000);
+    }
+  }
+
   async function handleParse() {
-    const files = fileList.flatMap((f) => f.originFileObj ? [f.originFileObj as File] : []);
-    if (!files.length) { setError("请先上传图纸或清单文件"); return; }
+    const files = fileList.flatMap((file) =>
+      file.originFileObj ? [file.originFileObj as File] : [],
+    );
+    if (!selectedProjectId) {
+      setError("请先创建或选择项目。");
+      return;
+    }
+    if (!files.length) {
+      setError("请先上传项目图纸。");
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setProgress({
       visible: true,
-      percent: 0,
-      current: 0,
+      percent: 2,
       total: files.length,
-      step: "准备处理",
-      detail: "",
-      filename: "",
+      current: 0,
+      step: "正在提交任务",
+      currentFileName: null,
     });
 
-    // 直接使用 HTTP 请求（WebSocket 目前为演示模式，返回数据格式不完整）
-    await fallbackParse(files);
-  }
-
-  // 执行解析请求（带进度显示）
-  async function fallbackParse(files: File[]) {
     try {
-      setProgress(prev => ({ ...prev, percent: 30, step: "正在解析文件..." }));
-      const payload = await parseInquiry(files, maxPages);
-
-      setProgress(prev => ({ ...prev, percent: 80, step: "处理结果..." }));
+      const snapshot = await createInquiryJob(files, selectedProjectId);
+      setProgress(buildProgressState(snapshot));
+      const payload = await pollInquiryJob(snapshot.job_id);
       setResult(payload);
-      setCurrentStep(2);
-
-      setProgress(prev => ({ ...prev, percent: 100 }));
-      message.success(`解析完成，识别 ${payload.summary.item_count} 条项目`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "解析请求失败";
-      setError(msg);
-      message.error(msg);
+      setProgress({
+        visible: true,
+        percent: 100,
+        total: files.length,
+        current: files.length,
+        step: "项目清单已生成",
+        currentFileName: null,
+      });
+      void loadProjectOptions();
+      message.success(`已生成 ${payload.summary.item_count} 项项目清单`);
+    } catch (currentError) {
+      const messageText =
+        currentError instanceof Error ? currentError.message : "解析请求失败";
+      setError(messageText);
+      message.error(messageText);
     } finally {
       setLoading(false);
-      setTimeout(() => {
-        setProgress(prev => ({ ...prev, visible: false }));
-      }, 500);
+      window.setTimeout(() => {
+        setProgress((current) => ({ ...current, visible: false }));
+      }, 1000);
     }
   }
 
   async function handleExport(format: ExportFormat) {
-    if (!result) return;
+    if (!result) {
+      return;
+    }
     setExporting(format);
     try {
       const blob = await exportInquiry(result, format);
-      downloadBlob(blob, `${result.request_id}.${format}`);
+      downloadBlob(blob, `${result.project_name || result.request_id}.${format}`);
       message.success(`已导出 ${format.toUpperCase()}`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "导出失败";
-      message.error(msg);
-    } finally { setExporting(null); }
+    } catch (currentError) {
+      const messageText =
+        currentError instanceof Error ? currentError.message : "导出失败";
+      message.error(messageText);
+    } finally {
+      setExporting(null);
+    }
   }
 
-  const summaryPercent = result
-    ? Math.round((result.summary.matched_count / Math.max(result.summary.item_count, 1)) * 100)
+  const referencePercent = result
+    ? Math.round(
+        (result.summary.reference_count / Math.max(result.summary.item_count, 1)) *
+          100,
+      )
     : 0;
 
-  const steps = [
-    { title: "上传图纸", icon: <FileTextOutlined /> },
-    { title: "智能解析", icon: <FileSearchOutlined /> },
-    { title: "询价匹配", icon: <CalculatorOutlined /> },
-    { title: "审核确认", icon: <CloudUploadOutlined /> },
-  ];
+  const currentProjectLabel =
+    selectedProject?.name ?? result?.project_name ?? "请先创建并选择项目";
 
   return (
     <>
-      {/* Header */}
       <header className="mb-5 flex items-center justify-between">
         <div>
-          <Title level={4} className="!m-0 !text-lg !text-ink">询价工作台</Title>
-          <Text className="text-xs text-ink-muted">{result ? `当前任务: ${result.request_id}` : "等待导入图纸文件"}</Text>
+          <Title level={4} className="!m-0 !text-lg !text-ink">
+            项目询价工作台
+          </Title>
+          <Text className="text-xs text-ink-muted">当前项目: {currentProjectLabel}</Text>
         </div>
-        <Badge status={result ? "processing" : "default"} text={result ? "处理中" : "就绪"} />
+        <Badge
+          status={loading ? "processing" : result ? "success" : "default"}
+          text={
+            loading ? "正在处理" : result ? "项目清单已生成" : "等待创建项目"
+          }
+        />
       </header>
 
-      {/* Steps */}
-      {/* <Card className="mb-5 rounded-card border-line backdrop-blur-card" variant="borderless">
-        <Steps current={currentStep} className="max-w-4xl">
-          {steps.map((s, i) => (
-            <Step key={i} title={s.title} icon={s.icon} onClick={() => { if (i <= currentStep || (result && i <= 2)) setCurrentStep(i); }}
-              className={currentStep >= i || (result && i <= 2) ? "cursor-pointer" : ""} />
-          ))}
-        </Steps>
-      </Card> */}
-
-      {/* Main Content */}
       <div className="grid gap-5 lg:grid-cols-3">
-        {/* Left: Upload */}
         <div className="lg:col-span-1">
           <Space orientation="vertical" size="middle" className="w-full">
-            <Card className="rounded-card border-line backdrop-blur-card" variant="borderless"
-              title={<div className="flex items-center gap-2"><CloudUploadOutlined className="text-primary" /><span className="text-ink">图纸上传</span></div>}>
-              <Dragger accept=".dwg,.dxf,.pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.csv,.json" beforeUpload={() => false} fileList={fileList} multiple
-                onChange={({ fileList: next }) => { setFileList(next); if (next.length > 0 && currentStep === 0) setCurrentStep(1); }}
-                className="rounded-metric border-line bg-uploader-gradient hover:border-primary">
-                <p className="ant-upload-drag-icon text-primary"><CloudUploadOutlined /></p>
-                <p className="ant-upload-text text-sm text-ink">拖拽文件到此处，或点击上传</p>
-                <p className="ant-upload-hint text-xs text-ink-muted">支持 DXF、PDF、图片、文本文件</p>
-              </Dragger>
-              {fileList.length > 0 && <div className="mt-4"><Text className="text-xs text-ink-muted">已选择 {fileList.length} 个文件</Text></div>}
-              {error && <Alert className="mt-4" type="error" message={error} showIcon closable onClose={() => setError(null)} />}
-            </Card>
-
-            <Card className="rounded-card border-line backdrop-blur-card" variant="borderless">
-              <Space orientation="vertical" className="w-full">
-                <div className="flex items-center justify-between">
-                  <Text className="text-sm text-ink">PDF处理页数</Text>
-                  <Select
-                    value={maxPages}
-                    onChange={setMaxPages}
-                    options={[
-                      { value: 1, label: "前1页（最快）" },
-                      { value: 2, label: "前2页" },
-                      { value: 3, label: "前3页（推荐）" },
-                      { value: 5, label: "前5页" },
-                      { value: 0, label: "全部（慢）" },
-                    ]}
-                    className="w-40"
-                    size="small"
-                  />
+            <Card
+              className="rounded-card border-line backdrop-blur-card"
+              variant="borderless"
+              title={
+                <div className="flex items-center gap-2">
+                  <FolderOpenOutlined className="text-primary" />
+                  <span className="text-ink">项目归档</span>
                 </div>
-                <Text className="text-xs text-ink-muted">大PDF建议分批处理，避免超时</Text>
+              }
+            >
+              <Space direction="vertical" size="middle" className="w-full">
+                <div>
+                  <Text className="mb-2 block text-sm text-ink">项目</Text>
+                  <Space.Compact className="w-full">
+                    <Select
+                      placeholder="先选择项目"
+                      value={selectedProjectId}
+                      loading={projectsLoading}
+                      options={projects.map((project) => ({
+                        value: project.id,
+                        label: project.name,
+                      }))}
+                      onChange={(value) => {
+                        setSelectedProjectId(value);
+                        setResult(null);
+                        setFileList([]);
+                        setError(null);
+                      }}
+                      className="w-full"
+                      showSearch
+                      optionFilterProp="label"
+                    />
+                    <Button
+                      icon={<FolderAddOutlined />}
+                      onClick={() => setCreateModalOpen(true)}
+                    >
+                      新建
+                    </Button>
+                  </Space.Compact>
+                </div>
 
-                <Button type="primary" icon={<FileSearchOutlined />} loading={loading} onClick={handleParse} disabled={fileList.length === 0 || progress.visible}
-                  size="large" block className="rounded-metric shadow-button">{loading ? "解析中..." : "开始智能解析"}</Button>
+                {!projectsLoading && projects.length === 0 && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="还没有项目"
+                    description="先创建项目，再上传系统图、设计说明、平面图和图例文件。"
+                  />
+                )}
 
-                {/* 进度条 */}
+                <Dragger
+                  accept=".dwg,.dxf,.pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.csv,.json"
+                  beforeUpload={() => false}
+                  fileList={fileList}
+                  multiple
+                  disabled={!selectedProjectId || loading}
+                  onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
+                  className="rounded-metric border-line bg-uploader-gradient hover:border-primary"
+                >
+                  <p className="ant-upload-drag-icon text-primary">
+                    <CloudUploadOutlined />
+                  </p>
+                  <p className="ant-upload-text text-sm text-ink">
+                    按项目上传图纸与说明文件
+                  </p>
+                  <p className="ant-upload-hint text-xs text-ink-muted">
+                    建议同一批次上传配电系统图、设计说明、平面图、图例符号说明
+                  </p>
+                </Dragger>
+
+                <Button
+                  type="primary"
+                  icon={<FileSearchOutlined />}
+                  loading={loading}
+                  onClick={handleParse}
+                  disabled={!selectedProjectId || fileList.length === 0 || progress.visible}
+                  size="large"
+                  block
+                  className="rounded-metric shadow-button"
+                >
+                  {loading ? "处理中..." : "生成项目清单"}
+                </Button>
+
                 {progress.visible && (
-                  <div className="mt-4 rounded-lg bg-primary/5 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <Text className="text-sm font-medium text-ink">{progress.step}</Text>
-                      <Text className="text-xs text-ink-muted">{progress.current} / {progress.total}</Text>
+                  <div className="rounded-lg bg-primary/5 p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div>
+                        <Text className="block text-sm font-medium text-ink">
+                          {progress.step}
+                        </Text>
+                        {progress.currentFileName && (
+                          <Text className="text-xs text-ink-muted">
+                            当前文件: {progress.currentFileName}
+                          </Text>
+                        )}
+                      </div>
+                      <Text className="text-xs text-ink-muted">
+                        {progress.current}/{progress.total || 0}
+                      </Text>
                     </div>
                     <Progress
                       percent={progress.percent}
@@ -275,79 +519,206 @@ export function InquiryClient() {
                       railColor="rgba(68, 57, 43, 0.12)"
                       showInfo={false}
                     />
-                    {progress.filename && (
-                      <Text className="text-xs text-ink-muted mt-2 block truncate">
-                        正在处理: {progress.filename}
-                      </Text>
-                    )}
-                    {progress.detail && (
-                      <Text className="text-xs text-ink-light mt-1 block">
-                        {progress.detail}
-                      </Text>
-                    )}
                   </div>
                 )}
 
-                <Divider className="!my-3">导出报告</Divider>
+                {error && (
+                  <Alert
+                    type="error"
+                    message={error}
+                    showIcon
+                    closable
+                    onClose={() => setError(null)}
+                  />
+                )}
+
+                <Divider className="!my-2">导出</Divider>
                 <Space className="w-full">
-                  <Button icon={<DownloadOutlined />} disabled={!result} loading={exporting === "xlsx"} onClick={() => handleExport("xlsx")} className="flex-1">Excel</Button>
-                  <Button icon={<DownloadOutlined />} disabled={!result} loading={exporting === "docx"} onClick={() => handleExport("docx")} className="flex-1">Word</Button>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    disabled={!result}
+                    loading={exporting === "xlsx"}
+                    onClick={() => handleExport("xlsx")}
+                    className="flex-1"
+                  >
+                    Excel
+                  </Button>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    disabled={!result}
+                    loading={exporting === "docx"}
+                    onClick={() => handleExport("docx")}
+                    className="flex-1"
+                  >
+                    Word
+                  </Button>
                 </Space>
               </Space>
             </Card>
 
             {result && (
-              <Card className="rounded-card border-line backdrop-blur-card bg-metric-gradient" variant="borderless">
+              <Card
+                className="rounded-card border-line backdrop-blur-card bg-metric-gradient"
+                variant="borderless"
+              >
                 <div className="text-center">
-                  <Text className="text-xs font-mono uppercase tracking-wider text-ink-muted">报价命中率</Text>
-                  <div className="my-2 text-4xl font-bold text-primary">{summaryPercent}%</div>
-                  <Progress percent={summaryPercent} showInfo={false} strokeColor="#e4572e" railColor="rgba(68, 57, 43, 0.12)" size="small" />
+                  <Text className="text-xs font-mono uppercase tracking-wider text-ink-muted">
+                    参考价覆盖率
+                  </Text>
+                  <div className="my-2 text-4xl font-bold text-primary">
+                    {referencePercent}%
+                  </div>
+                  <Progress
+                    percent={referencePercent}
+                    showInfo={false}
+                    strokeColor="#e4572e"
+                    railColor="rgba(68, 57, 43, 0.12)"
+                    size="small"
+                  />
                 </div>
               </Card>
             )}
           </Space>
         </div>
 
-        {/* Right: Results */}
         <div className="lg:col-span-2">
-          <Card className="h-full min-h-[600px] rounded-card border-line backdrop-blur-card" variant="borderless"
+          <Card
+            className="h-full min-h-[600px] rounded-card border-line backdrop-blur-card"
+            variant="borderless"
             title={
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CalculatorOutlined className="text-primary" />
-                  <span className="text-ink">工程量清单</span>
-                  {result && <Tag color="processing" className="ml-2">{result.extraction_mode === "openai" ? "AI 识别" : "规则识别"}</Tag>}
+                  <span className="text-ink">项目询价清单</span>
+                  {result && (
+                    <>
+                      <Tag color="processing">{result.extraction_mode}</Tag>
+                      <Tag color="blue">
+                        {result.pricing_mode === "reference_only"
+                          ? "参考价模式"
+                          : result.pricing_mode}
+                      </Tag>
+                    </>
+                  )}
                 </div>
-                {result && <div className="text-right"><Text className="text-sm text-ink-muted">合计</Text><div className="text-xl font-bold text-primary">¥{result.summary.subtotal.toLocaleString("zh-CN")}</div></div>}
+                {result && (
+                  <div className="text-right">
+                    <Text className="text-sm text-ink-muted">参考合计</Text>
+                    <div className="text-xl font-bold text-primary">
+                      {formatCurrency(result.summary.reference_subtotal)}
+                    </div>
+                  </div>
+                )}
               </div>
-            }>
+            }
+          >
             {result ? (
               <Space orientation="vertical" size="large" className="w-full">
                 <Row gutter={16}>
-                  <Col span={8}><Card className="rounded-metric border-line bg-paper" variant="borderless"><Statistic title="识别项目" value={result.summary.item_count} valueStyle={{ color: "#211f1a", fontSize: 24 }} /></Card></Col>
-                  <Col span={8}><Card className="rounded-metric border-line bg-paper" variant="borderless"><Statistic title="已匹配" value={result.summary.matched_count} valueStyle={{ color: "#52c41a", fontSize: 24 }} /></Card></Col>
-                  <Col span={8}><Card className="rounded-metric border-line bg-paper" variant="borderless"><Statistic title="异常标记" value={result.summary.flagged_count} valueStyle={{ color: result.summary.flagged_count > 0 ? "#fa8c16" : "#211f1a", fontSize: 24 }} /></Card></Col>
+                  <Col span={8}>
+                    <Card
+                      className="rounded-metric border-line bg-paper"
+                      variant="borderless"
+                    >
+                      <Statistic
+                        title="清单项数"
+                        value={result.summary.item_count}
+                        valueStyle={{ color: "#211f1a", fontSize: 24 }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={8}>
+                    <Card
+                      className="rounded-metric border-line bg-paper"
+                      variant="borderless"
+                    >
+                      <Statistic
+                        title="参考价项"
+                        value={result.summary.reference_count}
+                        valueStyle={{ color: "#52c41a", fontSize: 24 }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={8}>
+                    <Card
+                      className="rounded-metric border-line bg-paper"
+                      variant="borderless"
+                    >
+                      <Statistic
+                        title="待询价项"
+                        value={result.summary.pending_count}
+                        valueStyle={{ color: "#fa8c16", fontSize: 24 }}
+                      />
+                    </Card>
+                  </Col>
                 </Row>
 
-                {result.warnings.length > 0 && <Alert type="warning" showIcon message="解析提示" description={<Space size={[4, 8]} wrap>{result.warnings.map((w) => <Tag key={w}>{w}</Tag>)}</Space>} />}
+                {result.warnings.length > 0 && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="处理提示"
+                    description={
+                      <Space size={[4, 8]} wrap>
+                        {result.warnings.map((warning) => (
+                          <Tag key={warning}>{warning}</Tag>
+                        ))}
+                      </Space>
+                    }
+                  />
+                )}
 
-                <Table<InquiryItem> rowKey={(r, i) => `${r.name}-${r.specification ?? "na"}-${i}`} columns={columns} dataSource={result.items}
-                  pagination={{ pageSize: 8, hideOnSinglePage: true, showSizeChanger: false }} scroll={{ x: 1000 }} size="small" className="rounded-metric overflow-hidden" />
+                <Table<InquiryItem>
+                  rowKey={(record, index) =>
+                    `${record.boq_code ?? "na"}-${record.name}-${record.specification ?? "na"}-${index}`
+                  }
+                  columns={columns}
+                  dataSource={result.items}
+                  pagination={{
+                    pageSize: 50,
+                    hideOnSinglePage: true,
+                    showSizeChanger: true,
+                    pageSizeOptions: [20, 50, 100],
+                    showTotal: (total) => `共 ${total} 项`,
+                  }}
+                  scroll={{ x: 1500 }}
+                  size="small"
+                  className="rounded-metric overflow-hidden"
+                />
 
                 <div>
-                  <Text className="mb-3 block text-xs font-mono uppercase tracking-wider text-ink-muted">来源文件</Text>
+                  <Text className="mb-3 block text-xs font-mono uppercase tracking-wider text-ink-muted">
+                    来源文件
+                  </Text>
                   <Row gutter={[12, 12]}>
-                    {result.documents.map((doc) => (
-                      <Col xs={24} md={12} key={doc.filename}>
-                        <Card className="rounded-metric border-line bg-paper" variant="borderless" size="small">
+                    {result.documents.map((document) => (
+                      <Col xs={24} md={12} key={document.filename}>
+                        <Card
+                          className="rounded-metric border-line bg-paper"
+                          variant="borderless"
+                          size="small"
+                        >
                           <div className="flex items-start justify-between">
                             <div>
-                              <Text strong className="text-ink">{doc.filename}</Text>
-                              <div className="text-xs text-ink-muted">{doc.file_type.toUpperCase()} · {doc.parser}</div>
+                              <Text strong className="text-ink">
+                                {document.filename}
+                              </Text>
+                              <div className="text-xs text-ink-muted">
+                                {document.file_type.toUpperCase()} · {document.parser}
+                              </div>
                             </div>
-                            {doc.warnings.length > 0 && <Tooltip title={doc.warnings.join(", ")}><WarningOutlined className="text-amber-500" /></Tooltip>}
+                            {document.warnings.length > 0 && (
+                              <Tooltip title={document.warnings.join("，")}>
+                                <WarningOutlined className="text-amber-500" />
+                              </Tooltip>
+                            )}
                           </div>
-                          <Paragraph ellipsis={{ rows: 2 }} className="!mb-0 mt-2 text-xs text-ink-light">{doc.text_excerpt}</Paragraph>
+                          <Paragraph
+                            ellipsis={{ rows: 2 }}
+                            className="!mb-0 mt-2 text-xs text-ink-light"
+                          >
+                            {document.text_excerpt}
+                          </Paragraph>
                         </Card>
                       </Col>
                     ))}
@@ -356,12 +727,53 @@ export function InquiryClient() {
               </Space>
             ) : (
               <div className="flex h-[400px] flex-col items-center justify-center rounded-metric border border-dashed border-line bg-paper/50">
-                <Empty image={<FileTextOutlined className="text-6xl text-line-strong" />} description={<div className="text-center"><Text className="block text-ink">暂无数据</Text><Text className="text-sm text-ink-muted">上传图纸文件后，系统将自动解析并生成工程量清单</Text></div>} />
+                <Empty
+                  image={<FileTextOutlined className="text-6xl text-line-strong" />}
+                  description={
+                    <div className="text-center">
+                      <Text className="block text-ink">暂无项目清单</Text>
+                      <Text className="text-sm text-ink-muted">
+                        先创建项目，再上传系统图、设计说明、平面图和图例说明文件
+                      </Text>
+                    </div>
+                  }
+                />
               </div>
             )}
           </Card>
         </div>
       </div>
+
+      <Modal
+        title="创建项目"
+        open={createModalOpen}
+        onCancel={() => setCreateModalOpen(false)}
+        onOk={() => projectForm.submit()}
+        confirmLoading={creatingProject}
+        okText="创建"
+        destroyOnHidden
+      >
+        <Form<CreateProjectForm>
+          form={projectForm}
+          layout="vertical"
+          onFinish={handleCreateProject}
+        >
+          <Form.Item<CreateProjectForm>
+            name="name"
+            label="项目名称"
+            rules={[{ required: true, message: "请输入项目名称" }]}
+          >
+            <Input placeholder="例如：罗湖美术馆升级改造项目" maxLength={200} />
+          </Form.Item>
+          <Form.Item<CreateProjectForm> name="description" label="项目备注">
+            <Input.TextArea
+              placeholder="可选，用于记录项目阶段、专业范围或批次说明"
+              rows={3}
+              maxLength={2000}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

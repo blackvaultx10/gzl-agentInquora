@@ -20,6 +20,12 @@ if TYPE_CHECKING:
 
 SUPPORTED_IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 SUPPORTED_TEXT_TYPES = {".txt", ".csv", ".json"}
+CAD_SYMBOL_COUNT_LAYERS = {
+    "D-\u8bbe\u5907-\u666e\u901a\u7167\u660e",
+    "D-\u8bbe\u5907-\u5e94\u6025\u7167\u660e",
+    "D-\u8bbe\u5907-\u63d2\u5ea7",
+    "D-\u8bbe\u5907-\u5f00\u5173",
+}
 
 
 @dataclass
@@ -34,6 +40,19 @@ class _CadTextFragment:
 def _clean_excerpt(text: str, limit: int = 380) -> str:
     sanitized = " ".join(text.split())
     return sanitized[:limit] + ("..." if len(sanitized) > limit else "")
+
+
+def _classify_document_role(filename: str) -> str:
+    normalized = (filename or "").replace(" ", "")
+    if any(keyword in normalized for keyword in ("图例", "图例符号", "符号及文字说明", "文字说明")):
+        return "legend"
+    if "系统图" in normalized:
+        return "system"
+    if "平面图" in normalized:
+        return "plan"
+    if "说明" in normalized:
+        return "spec"
+    return "other"
 
 
 def _is_garbage_text(text: str) -> bool:
@@ -202,17 +221,39 @@ def _iter_cad_text_fragments(entities: Iterator, depth: int = 0) -> Iterator[_Ca
         yield fragment
 
 
+def _collect_cad_symbol_summary(document) -> list[str]:
+    counts: dict[tuple[str, str], int] = {}
+    for entity in document.modelspace():
+        if entity.dxftype() != "INSERT":
+            continue
+        layer = (getattr(entity.dxf, "layer", "") or "").strip()
+        block_name = (getattr(entity.dxf, "name", "") or "").strip()
+        if not layer or not block_name or layer not in CAD_SYMBOL_COUNT_LAYERS:
+            continue
+        key = (layer, block_name)
+        counts[key] = counts.get(key, 0) + 1
+
+    return [
+        f"[CAD_BLOCK_COUNT] layer={layer} block={block_name} count={count}"
+        for (layer, block_name), count in sorted(counts.items())
+    ]
+
+
 def _collect_cad_entities(document, format_name: str) -> tuple[str, list[str]]:
     fragments = list(_iter_cad_text_fragments(iter(document.modelspace())))
     warnings: list[str] = []
     if not fragments:
-        warnings.append(f"{format_name} 中未找到可识别的文本、属性或尺寸标注。")
+        warnings.append(f"{format_name} ???????????????????")
         return "", warnings
 
     lines = _sorted_cad_lines(fragments)
     if not lines:
-        warnings.append(f"{format_name} 中未找到可排序的有效文本。")
+        warnings.append(f"{format_name} ?????????????")
         return "", warnings
+
+    symbol_summary_lines = _collect_cad_symbol_summary(document)
+    if symbol_summary_lines:
+        lines.extend(symbol_summary_lines)
 
     return "\n".join(lines), warnings
 
@@ -786,21 +827,33 @@ def _parse_upload_sync(
         filename=filename,
         file_type=suffix.lstrip(".") or "unknown",
         parser=parser_name,
+        document_role=_classify_document_role(filename),
         text_excerpt=_clean_excerpt(text),
         warnings=warnings,
     ), text
 
 
-async def parse_upload(upload: UploadFile, max_pages: int = 0) -> tuple[ParsedDocument, str]:
-    suffix = Path(upload.filename or "upload.bin").suffix.lower()
-    if not upload.filename:
-        raise ValueError("上传文件缺少文件名。")
+async def parse_content(
+    filename: str,
+    content: bytes,
+    max_pages: int = 0,
+) -> tuple[ParsedDocument, str]:
+    suffix = Path(filename or "upload.bin").suffix.lower()
+    if not filename:
+        raise ValueError("??????????")
 
-    content = await upload.read()
     return await asyncio.to_thread(
         _parse_upload_sync,
-        upload.filename,
+        filename,
         suffix,
         content,
         max_pages,
     )
+
+
+async def parse_upload(upload: UploadFile, max_pages: int = 0) -> tuple[ParsedDocument, str]:
+    if not upload.filename:
+        raise ValueError("??????????")
+
+    content = await upload.read()
+    return await parse_content(upload.filename, content, max_pages=max_pages)

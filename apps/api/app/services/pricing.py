@@ -30,7 +30,8 @@ class PricingEngine:
     def price_items(self, items: list[InquiryItem]) -> tuple[list[InquiryItem], InquirySummary]:
         priced_items: list[InquiryItem] = []
         flagged_count = 0
-        matched_count = 0
+        reference_count = 0
+        pending_count = 0
         subtotal = 0.0
 
         for item in items:
@@ -39,23 +40,27 @@ class PricingEngine:
             anomalies = list(priced_item.anomalies)
 
             if candidate is None:
-                anomalies.append("no_price_match")
+                pending_count += 1
             else:
-                matched_count += 1
-                priced_item.vendor = str(candidate["vendor"])
-                priced_item.currency = str(candidate["currency"])
-                priced_item.unit_price = round(float(candidate["unit_price"]), 2)
-                priced_item.total_price = round(priced_item.unit_price * priced_item.quantity, 2)
-                priced_item.price_basis = str(candidate["price_basis"])
-                priced_item.match_score = round(score, 3)
-                subtotal += priced_item.total_price
+                reference_count += 1
+                priced_item.reference_vendor = str(candidate["vendor"])
+                priced_item.reference_unit_price = round(float(candidate["unit_price"]), 2)
+                priced_item.reference_total_price = round(priced_item.reference_unit_price * priced_item.quantity, 2)
+                priced_item.reference_basis = str(candidate["price_basis"])
+                priced_item.reference_match_score = round(score, 3)
+                priced_item.price_source = "catalog_reference"
 
-                if score < 0.75:
-                    anomalies.append("low_match_confidence")
-                if normalize_token(priced_item.unit) != normalize_token(str(candidate["unit"])):
-                    anomalies.append("unit_mismatch")
-                if priced_item.total_price > 100000:
-                    anomalies.append("large_line_amount")
+                # Keep legacy fields populated for backward compatibility with saved payloads.
+                priced_item.vendor = priced_item.reference_vendor
+                priced_item.currency = str(candidate["currency"])
+                priced_item.unit_price = priced_item.reference_unit_price
+                priced_item.total_price = priced_item.reference_total_price
+                priced_item.price_basis = priced_item.reference_basis
+                priced_item.match_score = priced_item.reference_match_score
+                subtotal += priced_item.reference_total_price
+
+                if score < 0.86:
+                    anomalies.append("reference_low_confidence")
 
             if priced_item.quantity <= 0:
                 anomalies.append("invalid_quantity")
@@ -67,9 +72,10 @@ class PricingEngine:
 
         summary = InquirySummary(
             item_count=len(priced_items),
-            matched_count=matched_count,
+            reference_count=reference_count,
+            pending_count=pending_count,
             flagged_count=flagged_count,
-            subtotal=round(subtotal, 2),
+            reference_subtotal=round(subtotal, 2),
             currency="CNY",
         )
         return priced_items, summary
@@ -80,21 +86,35 @@ class PricingEngine:
             return None, 0.0
 
         name_norm = normalize_token(item.name)
+        snippet_norm = normalize_token(item.source_snippet)
         spec_norm = normalize_token(item.specification)
         category_norm = normalize_token(item.category)
 
         best_score = 0.0
         best_row = None
         for _, row in catalog.iterrows():
-            name_score = SequenceMatcher(None, name_norm, row["name_norm"]).ratio()
-            spec_score = SequenceMatcher(None, spec_norm, row["spec_norm"]).ratio() if spec_norm else 0.45
+            name_score = max(
+                SequenceMatcher(None, name_norm, row["name_norm"]).ratio(),
+                SequenceMatcher(None, snippet_norm, row["name_norm"]).ratio(),
+            )
+            spec_score = (
+                max(
+                    SequenceMatcher(None, spec_norm, row["spec_norm"]).ratio(),
+                    SequenceMatcher(None, snippet_norm, row["spec_norm"]).ratio(),
+                )
+                if spec_norm or row["spec_norm"]
+                else 0.4
+            )
             category_score = 1.0 if category_norm and category_norm == row["category_norm"] else 0.35
             score = (name_score * 0.55) + (spec_score * 0.3) + (category_score * 0.15)
             if score > best_score:
                 best_score = score
                 best_row = row
 
-        if best_score < 0.45:
+        if best_row is None:
+            return None, best_score
+        if normalize_token(item.unit) != normalize_token(str(best_row["unit"])):
+            return None, best_score
+        if best_score < 0.72:
             return None, best_score
         return best_row, best_score
-

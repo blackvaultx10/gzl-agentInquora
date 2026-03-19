@@ -13,20 +13,20 @@ if TYPE_CHECKING:
 
 
 class ProviderConfig(Base):
-    """第三方服务提供商配置表。"""
+    """????????????"""
 
     __tablename__ = "provider_configs"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    provider_type: Mapped[str] = mapped_column(String(50), index=True, comment="提供商类型: baidu_ocr, tencent_ocr, deepseek, openai")
-    name: Mapped[str] = mapped_column(String(100), comment="显示名称")
-    api_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="API Key (加密存储)")
-    secret_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Secret Key (加密存储)")
-    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="基础URL")
-    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="模型名称")
-    extra_config: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="额外配置JSON")
-    is_active: Mapped[bool] = mapped_column(default=True, comment="是否启用")
-    is_encrypted: Mapped[bool] = mapped_column(default=False, comment="是否已加密")
+    provider_type: Mapped[str] = mapped_column(String(50), index=True, comment="?????: baidu_ocr, tencent_ocr, deepseek, openai")
+    name: Mapped[str] = mapped_column(String(100), comment="????")
+    api_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="API Key (????)")
+    secret_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Secret Key (????)")
+    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="??URL")
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="????")
+    extra_config: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="????JSON")
+    is_active: Mapped[bool] = mapped_column(default=True, comment="????")
+    is_encrypted: Mapped[bool] = mapped_column(default=False, comment="?????")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -38,3 +38,29 @@ class ProviderConfig(Base):
 
     def __repr__(self) -> str:
         return f"<ProviderConfig {self.provider_type}: {self.name}>"
+
+
+class InquiryProject(Base):
+    """??????"""
+
+    __tablename__ = "inquiry_projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, index=True, comment="????")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="????")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+    last_processed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
+        comment="????????????",
+    )
+
+    def __repr__(self) -> str:
+        return f"<InquiryProject {self.id}: {self.name}>"
